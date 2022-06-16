@@ -104,7 +104,7 @@ static void *run(hashpipe_thread_args_t * args)
   int curblock_in=0;
 
   char *datablock_header;
-  int beam_blocksize=0, len=0;
+  int file_blocksize=0, len=0;
   int block_count=0, blocks_per_file= (int) (((uint64_t)16<<30)/hpguppi_databuf_size(indb)) , filenum=0;
   int got_packet_0=0;
   char *hend;
@@ -258,7 +258,7 @@ static void *run(hashpipe_thread_args_t * args)
           directio = hpguppi_read_directio_mode(datablock_header);
           hgeti4(datablock_header, "STTVALID", &gp.stt_valid);
           /* Get full data block size */
-          hgeti4(datablock_header, "BLOCSIZE", &beam_blocksize);
+          hgeti4(datablock_header, "BLOCSIZE", &file_blocksize);
 
           // free previous fdraws
           free(fdraws);
@@ -266,12 +266,12 @@ static void *run(hashpipe_thread_args_t * args)
           nbeams = 0;
           hgeti4(datablock_header, "NBEAMS", &nbeams);
           if(nbeams>0){
-            if(beam_blocksize % nbeams == 0){
-              hashpipe_warn(thread_name, "BLOCSIZE %d split per NBEAMS %d.", beam_blocksize, nbeams);
-              beam_blocksize /= nbeams;
+            if(file_blocksize % nbeams == 0){
+              hashpipe_warn(thread_name, "BLOCSIZE %d split per NBEAMS %d.", file_blocksize, nbeams);
+              file_blocksize /= nbeams;
             }
             else{
-              hashpipe_warn(thread_name, "NBEAMS %d is not a factor of BLOCSIZE %d. Outputting a single file.", nbeams, beam_blocksize);
+              hashpipe_warn(thread_name, "NBEAMS %d is not a factor of BLOCSIZE %d. Outputting a single file.", nbeams, file_blocksize);
               nbeams = 1;
             }
             nfdraws = nbeams;
@@ -367,7 +367,7 @@ static void *run(hashpipe_thread_args_t * args)
 
         for(i = 0; i < nfdraws; i++){
           if(nbeams==0){
-            sprintf(fname, "%s.raw", pf.basefilename);
+            sprintf(fname, "%s.%04d.raw", pf.basefilename,filenum);
           }
           else{
             sprintf(fname, "%s-beam%04d.%04d.raw", pf.basefilename, i, filenum);
@@ -390,7 +390,7 @@ static void *run(hashpipe_thread_args_t * args)
         for(i = 0; i < nfdraws; i++){
           close(fdraws[i]);
           if(nbeams==0){
-            sprintf(fname, "%s.raw", pf.basefilename);
+            sprintf(fname, "%s.%04d.raw", pf.basefilename,filenum);
           }
           else{
             sprintf(fname, "%s-beam%04d.%04d.raw", pf.basefilename, i, filenum);
@@ -415,7 +415,7 @@ static void *run(hashpipe_thread_args_t * args)
       if (got_packet_0) {
         // Overwrite the incomming datablock headers to be appropriate for output
         hputi4(datablock_header, "NBEAMS", 1);
-        hputi4(datablock_header, "BLOCSIZE", beam_blocksize);
+        hputi4(datablock_header, "BLOCSIZE", file_blocksize);
         
         if(waiting != -1){
           /* Note writing status */
@@ -461,7 +461,7 @@ static void *run(hashpipe_thread_args_t * args)
 
         /* Write data */
         datablock_header = hpguppi_databuf_data(indb, curblock_in);
-        len = beam_blocksize;
+        len = file_blocksize;
         if(directio) {
             // Round up to next multiple of 512
             len = (len+511) & ~511;
@@ -483,7 +483,7 @@ static void *run(hashpipe_thread_args_t * args)
           }
 
           // offset data pointer to the next beam's data
-          datablock_header += beam_blocksize;
+          datablock_header += file_blocksize;
         }
 
         
