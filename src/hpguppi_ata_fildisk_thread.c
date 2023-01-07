@@ -211,7 +211,8 @@ static void *run(hashpipe_thread_args_t * args)
 
   uint64_t obs_npacket_total=0;
   uint64_t ndrop_obs_start=0, ndrop_obs_current=0;
-  uint32_t block_npacket=0, block_ndrop=0;
+  uint64_t nexcess_obs_start=0, nexcess_obs_current=0;
+  uint32_t block_npacket=0;
 
   uint64_t obs_start_pktidx = 0, obs_stop_pktidx = 0;
   uint64_t block_start_pktidx = 0, block_stop_pktidx = 0;
@@ -258,9 +259,13 @@ static void *run(hashpipe_thread_args_t * args)
           timestr[strlen(timestr)-1] = '\0'; // Chop off trailing newline
           hashpipe_status_lock_safe(st);
           {
-              hgetu8(st->buf, "NDROP", &ndrop_obs_current);
+              if (state == RECORD) {
+                hgetu8(st->buf, "NDROP", &ndrop_obs_current);
+                hgetu8(st->buf, "NEXCESS", &nexcess_obs_current);
+                hputu8(st->buf, "OBSNDROP", ndrop_obs_current - ndrop_obs_start);
+                hputu8(st->buf, "OBSNXCES", nexcess_obs_current - nexcess_obs_start);
+              }
               hputu8(st->buf, "OBSNPKTS", obs_npacket_total);
-              hputu8(st->buf, "OBSNDROP", ndrop_obs_current - ndrop_obs_start);
               hputu4(st->buf, "OBSBLKPS", blocks_per_second);
               hputr4(st->buf, "OBSBLKMS",
                 round((double)fill_to_free_moving_sum_ns / N_INPUT_BLOCKS) / 1e6);
@@ -364,12 +369,12 @@ static void *run(hashpipe_thread_args_t * args)
           hashpipe_status_lock_safe(st);
           {
             hgetu8(st->buf, "NDROP", &ndrop_obs_start);
+            hgetu8(st->buf, "NEXCESS", &nexcess_obs_start);
           }
           hashpipe_status_unlock_safe(st);
         }
 
         hgetu4(datablock_header, "NPKT", &block_npacket);
-        hgetu4(datablock_header, "NDROP", &block_ndrop);
         obs_npacket_total += block_npacket;
         break;
       case ARMED:// If should ARM,

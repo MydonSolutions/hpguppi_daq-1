@@ -297,13 +297,14 @@ struct __attribute__ ((__packed__)) ata_snap_payload_header {
 struct datablock_stats {
     ATA_IBV_OUT_DATABUF_T *dbout; // Pointer to overall shared mem databuf
     int block_idx;                    // Block index number in databuf
-    int64_t block_num;                // Absolute block number
     uint64_t packet_idx;              // Index of first packet number in block
-    int pktidx_per_block;            // Total number of packets to go in the block
+    int pktidx_per_block;             // Total number of packets to go in the block
     uint64_t pkts_per_block;
     int npacket;                      // Number of packets filled so far
-    int ndrop;                     // Number of dropped packets so far
-    uint64_t last_pkt;                // Last packet seq number written to block
+    int64_t ndrop;                    // Number of dropped packets so far
+    int64_t nexcess;                  // Number of packets excessive to the number that ought to fill a block
+    uint32_t nants;                   // Number of antenna
+    uint32_t *nant_pkts;              // Vector of packets counted for each antenna
 };
 
 // ATA SNAP packet with link layer header and internal padding to optimize
@@ -716,11 +717,11 @@ static inline char * datablock_stats_header(const struct datablock_stats *d)
 
 void reset_datablock_stats(struct datablock_stats *d);
 void init_datablock_stats(struct datablock_stats *d,
-    ATA_IBV_OUT_DATABUF_T *dbout, int block_idx, int64_t block_num,
+    ATA_IBV_OUT_DATABUF_T *dbout, int block_idx,
     uint64_t pkts_per_block);
 void block_stack_push(struct datablock_stats *d, int nblock);
 void finalize_block(struct datablock_stats *d);
-void increment_block(struct datablock_stats *d, int64_t block_num);
+void increment_block(struct datablock_stats *d);
 void wait_for_block_free(const struct datablock_stats * d,
   hashpipe_status_t * st, const char * status_key);
 

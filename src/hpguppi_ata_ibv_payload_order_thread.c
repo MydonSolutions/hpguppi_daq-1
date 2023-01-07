@@ -257,12 +257,11 @@ int debug_i=0, debug_j=0;
   int wblk_idx;
   const int n_wblock = 3;
   struct datablock_stats wblk[n_wblock];
-  uint32_t *thread_wblk_pkt_count = malloc(ATA_IBV_FOR_PACKET_THREAD_COUNT*n_wblock*sizeof(uint32_t));
-  memset(thread_wblk_pkt_count, 0, ATA_IBV_FOR_PACKET_THREAD_COUNT*n_wblock*sizeof(uint32_t));
+  memset(wblk, 0, n_wblock*sizeof(struct datablock_stats));
+  uint32_t *thread_wblk_nant_pkt_count = NULL;
 
   // Packet block variables
-  uint64_t blk0_relative_pkt_seq_num = 0;
-  unsigned long pkt_blk_num, last_pkt_blk_num = ~0;
+  unsigned long last_blk0_pktidx = ~0;
   uint64_t obs_start_seq_num = 0, obs_stop_seq_num = 0, blk0_start_seq_num = 0;
   uint64_t prev_obs_start_seq_num, prev_obs_stop_seq_num;
   uint32_t antenna_byte_stride, channel_byte_stride, time_byte_stride;
@@ -299,7 +298,7 @@ int debug_i=0, debug_j=0;
   char * datablock_header;
 
   // Variables for counting packets and bytes.
-  uint64_t npacket=0, npacket_total=0, npacket_drop=0, ndrop_total=0;
+  uint64_t npacket=0, npacket_total=0, npacket_drop=0, ndrop_total=0, npacket_excess=0, nexcess_total=0;
   uint64_t n_blks_rushed=0;
   // uint32_t nbogus_size;
 
@@ -346,7 +345,7 @@ int debug_i=0, debug_j=0;
       // important to initialise the blocks with unique block idx
       // and to set the block_num < -1 so the first observation packet causes a 
       // discontinuity and so a contemporary re-init of the working blocks
-      init_datablock_stats(wblk+wblk_idx, dbout, wblk_idx, -10, obs_info.pkt_per_block);
+      init_datablock_stats(wblk+wblk_idx, dbout, wblk_idx, obs_info.pkt_per_block);
       wait_for_block_free(wblk+wblk_idx, st, status_key);
   }
 
@@ -438,6 +437,18 @@ int debug_i=0, debug_j=0;
             channel_byte_stride /= sizeof(PKT_PAYLOAD_CP_T);
             time_byte_stride /= sizeof(PKT_PAYLOAD_CP_T);
             memcpy(&ts_tried_obs_info, &ts_now, sizeof(struct timespec));
+
+            if (thread_wblk_nant_pkt_count) {
+              free(thread_wblk_nant_pkt_count);
+            }
+            thread_wblk_nant_pkt_count = calloc(ATA_IBV_FOR_PACKET_THREAD_COUNT*n_wblock*obs_info.nants, sizeof(uint32_t));
+            for (wblk_idx = 0; wblk_idx < n_wblock; wblk_idx++) {
+              if(wblk[wblk_idx].nant_pkts) {
+                free(wblk[wblk_idx].nant_pkts);
+              }
+              wblk[wblk_idx].nants = obs_info.nants;
+              wblk[wblk_idx].nant_pkts = calloc(obs_info.nants, sizeof(uint32_t));
+            }
           }
           else if (ELAPSED_S(ts_tried_obs_info, ts_now) > obs_info_retry_period_s){
             memcpy(&ts_tried_obs_info, &ts_now, sizeof(struct timespec));
@@ -496,6 +507,11 @@ int debug_i=0, debug_j=0;
           hgetu8(st->buf, "NDROP", &ndrop_total);
           ndrop_total += npacket_drop;
           hputi8(st->buf, "NDROP", ndrop_total);
+
+          hgetu8(st->buf, "NEXCESS", &nexcess_total);
+          nexcess_total += npacket_excess;
+          hputi8(st->buf, "NEXCESS", nexcess_total);
+
           hputr4(st->buf, "PHYSPKPS", npacket*(1e9/obs_info_refresh_elapsed_ns));
           hputr4(st->buf, "PHYSGBPS", (npacket*obs_info.pkt_data_size)/((float) obs_info_refresh_elapsed_ns));
 
@@ -512,6 +528,7 @@ int debug_i=0, debug_j=0;
         hashpipe_status_unlock_safe(st);
         npacket = 0;
         npacket_drop = 0;
+        npacket_excess = 0;
       } // curtime != lasttime
 
       // Set status field to "waiting" if we are not getting packets
@@ -560,19 +577,18 @@ int debug_i=0, debug_j=0;
     ata_snap_parse_ibv_packet(p_pkt, &pkt_info);
 
     // Only do the work if packets seem to be in range, or the downstream controlled `observation_complete` is low
-    if((pkt_info.pktidx <= obs_stop_seq_num || !observation_complete) && obs_info_validity > OBS_INVALID) {
+    const char transfer_payloads = (pkt_info.pktidx <= obs_stop_seq_num || !observation_complete);
+    if(obs_info_validity >= OBS_SEEMS_VALID) {
+    // if(transfer_payloads) {
+
       // Check the first packet's timestamp, to determine reinit_blocks
       //  This works because it is figured that a block filled with packets
       //  will contain packets with indices that place them in two adjacent downstream blocks.
-      
-      // Get packet index and absolute block number for packet
-      blk0_relative_pkt_seq_num = pkt_info.pktidx - blk0_start_seq_num;
-      // Get packet's block number relative to the first block's starting index.
-      pkt_blk_num = blk0_relative_pkt_seq_num / obs_info.pktidx_per_block;
 
-      //TODO dont use pkt_blk_num due to underflow
-      if(pkt_blk_num + 1 < wblk[0].block_num 
-        || pkt_blk_num > wblk[n_wblock-1].block_num + 1) {
+      if(
+        (pkt_info.pktidx >= wblk[n_wblock-1].packet_idx + obs_info.pktidx_per_block)
+        || (pkt_info.pktidx < wblk[0].packet_idx - obs_info.pktidx_per_block)
+      ) {
           if(!observing && observation_complete) {
             flag_reinit_blks = 1;
             blk0_start_seq_num = pkt_info.pktidx;
@@ -581,27 +597,31 @@ int debug_i=0, debug_j=0;
             // Should only happen when seeing first packet when obs_info is valid
             // warn in case it happens in other scenarios
             hashpipe_warn(thread_name,
-                "working blocks reinit due to packet index out of working range\n\t\t(PKTIDX %lu) [%ld, %ld  <> %lu]",
-                pkt_info.pktidx, wblk[0].block_num - 1, wblk[n_wblock-1].block_num + 1, pkt_blk_num);
+              "working blocks reinit due to packet index out of working range\n\t(PKTIDX %llu) [%llu, %llu)",
+              pkt_info.pktidx, wblk[0].packet_idx, wblk[n_wblock-1].packet_idx + obs_info.pktidx_per_block
+            );
           }
           else { // observing and first packet's timestamp is out of working range
-            n_blks_rushed += pkt_blk_num - wblk[(n_wblock-1)/2].block_num;
-            while(pkt_blk_num > wblk[(n_wblock-1)/2].block_num) { // only progress working range
+            // only progress working range
+            while(pkt_info.pktidx > wblk[(n_wblock-1)/2].packet_idx + obs_info.pktidx_per_block) {
               datablock_header = datablock_stats_header(&wblk[0]);
               hputu8(datablock_header, "PKTIDX", wblk[0].packet_idx);
               hputu8(datablock_header, "BLKSTART", wblk[0].packet_idx);
               hputu8(datablock_header, "BLKSTOP", wblk[1].packet_idx);
+              hputu8(datablock_header, "RUSHBLKS", n_blks_rushed);
               // Finalize first working block
               finalize_block(wblk);
               // Update ndrop counter
               npacket_drop += wblk->ndrop;
+              npacket_excess += wblk->nexcess;
               // hashpipe_info(thread_name, "Block dropped %d packets.", wblk->ndrop);
               // Shift working blocks
               block_stack_push(wblk, n_wblock);
               // Increment last working block
-              increment_block(&wblk[n_wblock-1], wblk[n_wblock-1].block_num + 1);
+              increment_block(&wblk[n_wblock-1]);
               // Wait for new databuf data block to be free
               wait_for_block_free(&wblk[n_wblock-1], st, status_key);
+              n_blks_rushed += 1;
             }
           }
       }
@@ -614,9 +634,8 @@ int debug_i=0, debug_j=0;
         for(wblk_idx=0; wblk_idx<n_wblock; wblk_idx++) {
           wblk[wblk_idx].pktidx_per_block = obs_info.pktidx_per_block;
           init_datablock_stats(wblk+wblk_idx, NULL, -1,
-              wblk_idx,
               obs_info.pkt_per_block);
-          wblk[wblk_idx].packet_idx = blk0_start_seq_num + wblk[wblk_idx].block_num * obs_info.pktidx_per_block;
+          wblk[wblk_idx].packet_idx = blk0_start_seq_num + wblk_idx * obs_info.pktidx_per_block;
 
           // also update the working blocks' headers
           datablock_header = datablock_stats_header(&wblk[wblk_idx]);
@@ -627,19 +646,19 @@ int debug_i=0, debug_j=0;
         hashpipe_info(thread_name, "Working block range now has PKTIDX range [%ld, %ld)", wblk[0].packet_idx, wblk[n_wblock-1].packet_idx + obs_info.pktidx_per_block);
       }
 
+      // if(pktbuf_info->slots_per_block % ATA_IBV_THREAD_COUNT != 0 ){
+      //   hashpipe_warn(thread_name, "The slots per block (%lu) should be a multiple of the parallelism (%d) for optimal performance.", pktbuf_info->slots_per_block, ATA_IBV_THREAD_COUNT);
+      // }
       // For each packet: process all packets
       #if ATA_IBV_FOR_PACKET_THREAD_COUNT > 1
         #pragma omp parallel for private (\
           p_pkt,\
           pkt_info,\
           p_payload,\
-          blk0_relative_pkt_seq_num,\
-          pkt_blk_num,\
           wblk_idx,\
-          LATE_PKTIDX_flagged,\
           dest_feng_pktidx_offset\
         )\
-        firstprivate (p_u8pkt, obs_info, PKT_OBS_FENG_flagged, PKT_OBS_SCHAN_flagged, PKT_OBS_NCHAN_flagged, PKT_OBS_PKTNTIME_flagged, PKT_OBS_PKTIDX_flagged)\
+        firstprivate (p_u8pkt, obs_info, PKT_OBS_FENG_flagged, PKT_OBS_SCHAN_flagged, PKT_OBS_NCHAN_flagged, PKT_OBS_PKTNTIME_flagged, PKT_OBS_PKTIDX_flagged, LATE_PKTIDX_flagged)\
         reduction(min:obs_info_validity)\
         num_threads (ATA_IBV_FOR_PACKET_THREAD_COUNT)
         // The above `reduction` initialises each local variable as MAX>OBS_SEEMS_VALID, 
@@ -657,28 +676,21 @@ int debug_i=0, debug_j=0;
         p_payload = (PKT_PAYLOAD_CP_T*)
           ata_snap_parse_ibv_packet(p_pkt, &pkt_info);
 
-        // Get packet index and absolute block number for packet
-        pkt_info.pktidx = pkt_info.pktidx - blk0_start_seq_num;
+        // Make the packet index relative to the working-block range
+        pkt_info.pktidx = pkt_info.pktidx - wblk[0].packet_idx;
 
         // Only copy packet data and count packet if its wblk_idx is valid
         switch(check_pkt_observability_sans_idx(&obs_info, &pkt_info)){
           case PKT_OBS_OK:
-
-            // Manage blocks based on pkt_blk_num
-            // if (pkt_seq_num < blk0_start_seq_num && blk0_start_seq_num - pkt_seq_num < obs_info.pktidx_per_block){
-            //   hashpipe_info(thread_name, "pkt_seq_num (%lu) < (%lu) blk0_start_seq_num", pkt_seq_num, blk0_start_seq_num);
-            //   continue;
-            // }
-              
             // Once we get here, compute the index of the working block corresponding
             // to this packet.  The computed index may not correspond to a valid
             // working block!
 
-            // Get packet's block number relative to the first block's starting index.
-            pkt_blk_num = pkt_info.pktidx / obs_info.pktidx_per_block;
-            wblk_idx = pkt_blk_num - wblk[0].block_num;
+            // Get packet's block number (relative to the first block's starting index).
+            wblk_idx = pkt_info.pktidx / obs_info.pktidx_per_block;
 
             if(0 <= wblk_idx && wblk_idx < n_wblock) {
+              if(transfer_payloads) {
               // Copy packet data to data buffer of working block
               dest_feng_pktidx_offset = ((PKT_PAYLOAD_CP_T*)
                 datablock_stats_data(wblk+wblk_idx))
@@ -696,14 +708,15 @@ int debug_i=0, debug_j=0;
                   obs_info.pkt_nchan,
                   channel_byte_stride,
                   time_byte_stride);
+              }
               // Count packet for block and for processing stats
-              thread_wblk_pkt_count[(omp_get_thread_num()*n_wblock) + wblk_idx] += 1;
+              thread_wblk_nant_pkt_count[(omp_get_thread_num()*n_wblock + wblk_idx)*obs_info.nants + pkt_info.feng_id] += 1;
             }
-            else if(!LATE_PKTIDX_flagged){
+            else if(wblk_idx != -1 && !LATE_PKTIDX_flagged){
               // Happens on the first packet that is outside of wblks' scope,
               // or if a packet arrives late, consider n_wblock++
               LATE_PKTIDX_flagged = 1;
-              hashpipe_error(thread_name, "Packet ignored: determined wblk_idx = %d", wblk_idx);
+              hashpipe_error(thread_name, "Packet ignored: determined wblk_idx = %d (%ld + %lu) [feng_id=%d]", wblk_idx, pkt_info.pktidx, wblk[0].packet_idx, pkt_info.feng_id);
             }
             break;
           case PKT_OBS_FENG:
@@ -762,12 +775,16 @@ int debug_i=0, debug_j=0;
         }
       } // end for each packet
       
-      for(i=0; i < ATA_IBV_FOR_PACKET_THREAD_COUNT*n_wblock; i++){
-        npacket += thread_wblk_pkt_count[i];
-        wblk[i%n_wblock].npacket += thread_wblk_pkt_count[i];
+      for(i=0; i < ATA_IBV_FOR_PACKET_THREAD_COUNT*n_wblock*obs_info.nants; i++){
+        npacket += thread_wblk_nant_pkt_count[i];
+        // ((omp_get_thread_num()*n_wblock + wblk_idx)*obs_info.nants + pkt_info.feng_id
+        wblk_idx = (i / obs_info.nants) % n_wblock;
+
+        wblk[wblk_idx].npacket += thread_wblk_nant_pkt_count[i];
+        wblk[wblk_idx].nant_pkts[i % obs_info.nants] += thread_wblk_nant_pkt_count[i];
+        thread_wblk_nant_pkt_count[i] = 0;
       }
-      memset(thread_wblk_pkt_count, 0, ATA_IBV_FOR_PACKET_THREAD_COUNT*n_wblock*sizeof(uint32_t));
-    } // end if not idle
+    } // end if obs_info_validity >= OBS_SEEMS_VALID
     else if (observing) {
       observing = 0;
     }
@@ -810,10 +827,9 @@ int debug_i=0, debug_j=0;
       hputu8(st->buf, "PKTIDX", pkt_info.pktidx);//wblk[0].packet_idx);
 
       // Update PKTIDX in status buffer if it is a new pkt_blk_num
-      if(wblk[0].block_num != last_pkt_blk_num){
-        last_pkt_blk_num = wblk[0].block_num;
+      if(wblk[0].packet_idx != last_blk0_pktidx){
+        last_blk0_pktidx = wblk[0].packet_idx;
 
-          hputu8(st->buf, "BLKIDX", last_pkt_blk_num/obs_info.pktidx_per_block);
           hputu8(st->buf, "BLKSTART", wblk[0].packet_idx);
           hputu8(st->buf, "BLKSTOP", wblk[1].packet_idx);
       }
@@ -824,21 +840,59 @@ int debug_i=0, debug_j=0;
       // Time to advance the blocks!!!
       clock_gettime(CLOCK_MONOTONIC, &ts_stop_block);
 
+      if(transfer_payloads) {
       datablock_header = datablock_stats_header(&wblk[0]);
       hputu8(datablock_header, "PKTIDX", wblk[0].packet_idx);
       hputu8(datablock_header, "BLKSTART", wblk[0].packet_idx);
       hputu8(datablock_header, "BLKSTOP", wblk[1].packet_idx);
+        hputu8(datablock_header, "PKTSTART", obs_start_seq_num);
+        hputu8(datablock_header, "PKTSTOP", obs_stop_seq_num);
       // Finalize first working block
       finalize_block(wblk);
-      // Update ndrop counter
+        // Update ndrop/excess counter
       npacket_drop += wblk->ndrop;
-      // hashpipe_info(thread_name, "Block dropped %d packets.", wblk->ndrop);
+        npacket_excess += wblk->nexcess;
       // Shift working blocks
       block_stack_push(wblk, n_wblock);
       // Increment last working block
-      increment_block(&wblk[n_wblock-1], wblk[n_wblock-1].block_num + 1);
+        increment_block(&wblk[n_wblock-1]);
       // Wait for new databuf data block to be free
       wait_for_block_free(&wblk[n_wblock-1], st, status_key);
+      }
+      else {
+        // migrate working-block-range without changing buffer-indices.
+        char ant_stat_key[9];
+        hashpipe_status_lock_safe(st);
+        {
+          for(int i = 0; i < wblk[0].nants; i++) {
+            sprintf(ant_stat_key, "~ANPKT%02d", i%100);
+            hputu4(st->buf, ant_stat_key, wblk[0].nant_pkts[i]);
+          }
+        }
+        hashpipe_status_unlock_safe(st);
+
+        for (wblk_idx=0; wblk_idx < n_wblock-1; wblk_idx++) {
+          // hashpipe_info(thread_name, "#%d: %lu -> %lu", wblk_idx, wblk[wblk_idx].packet_idx, wblk[wblk_idx+1].packet_idx);
+          if(wblk[wblk_idx].pkts_per_block >= wblk[wblk_idx].npacket) {
+            wblk[wblk_idx].ndrop = wblk[wblk_idx].pkts_per_block - wblk[wblk_idx].npacket;
+          }
+          else {
+            wblk[wblk_idx].nexcess = wblk[wblk_idx].npacket - wblk[wblk_idx].pkts_per_block;
+          }
+          // Update ndrop/excess counter
+          npacket_drop += wblk->ndrop;
+          npacket_excess += wblk->nexcess;
+
+          wblk[wblk_idx].packet_idx = wblk[wblk_idx+1].packet_idx;
+          wblk[wblk_idx].npacket = wblk[wblk_idx+1].npacket;
+          if (wblk[wblk_idx].nants && wblk[wblk_idx].nant_pkts) {
+            memcpy(wblk[wblk_idx].nant_pkts, wblk[wblk_idx+1].nant_pkts, wblk[wblk_idx].nants*sizeof(uint32_t));
+          }
+        }
+        // hashpipe_info(thread_name, "#%d: %lu -> %lu", n_wblock-1, wblk[n_wblock-1].packet_idx, wblk[n_wblock-1].packet_idx + wblk[n_wblock-1].pktidx_per_block);
+        wblk[n_wblock-1].packet_idx += wblk[n_wblock-1].pktidx_per_block;
+        reset_datablock_stats(wblk + n_wblock-1);
+      }
 
       blocks_per_second = 1e9/ELAPSED_NS(ts_start_block,ts_stop_block);
       clock_gettime(CLOCK_MONOTONIC, &ts_start_block);

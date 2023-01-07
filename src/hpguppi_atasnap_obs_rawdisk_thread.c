@@ -67,7 +67,7 @@ static void *run(hashpipe_thread_args_t * args)
   const char* status_key = args->thread_desc->skey;
   const char* thread_name = args->thread_desc->name;
 
-  // The output buffer is generic
+  // The input buffer is generic
   hpguppi_databuf_t *indb  = (hpguppi_databuf_t *)hpguppi_databuf_attach_retry(args->instance_id, args->input_buffer);
   if(!indb) {
     hashpipe_error(thread_name, "Could not attach to input databuf #(%d).", args->input_buffer);
@@ -118,8 +118,8 @@ static void *run(hashpipe_thread_args_t * args)
   struct mjd_t *mjd = malloc(sizeof(struct mjd_t));
 
   /* Misc counters, etc */
-  uint64_t obs_npacket_total=0, obs_ndrop_total=0;
-  uint32_t block_npacket=0, block_ndrop=0;
+  uint64_t obs_npacket_total=0, obs_ndrop_total=0, obs_nexcess_total=0;
+  uint32_t block_npacket=0, block_ndrop=0, block_nexcess=0;
 
   uint64_t obs_start_pktidx = 0, obs_stop_pktidx = 0;
   uint64_t block_start_pktidx = 0, block_stop_pktidx = 0;
@@ -163,6 +163,7 @@ static void *run(hashpipe_thread_args_t * args)
           {
               hputu8(st->buf, "OBSNPKTS", obs_npacket_total);
               hputu8(st->buf, "OBSNDROP", obs_ndrop_total);
+              hputu8(st->buf, "OBSNXCES", obs_nexcess_total);
               hputu4(st->buf, "OBSBLKPS", blocks_per_second);
               hputr4(st->buf, "OBSBLKMS",
                 round((double)fill_to_free_moving_sum_ns / indb->header.n_block) / 1e6);
@@ -244,6 +245,7 @@ static void *run(hashpipe_thread_args_t * args)
         if (state != RECORD){
           obs_npacket_total = 0;
           obs_ndrop_total = 0;
+          obs_nexcess_total = 0;
           if(state != ARMED){// didn't arm correctly
             update_stt_status_keys(st, ARMED, obs_start_pktidx, mjd);
             hputu4(datablock_header, "STTVALID", 1);
@@ -287,8 +289,10 @@ static void *run(hashpipe_thread_args_t * args)
 
         hgetu4(datablock_header, "NPKT", &block_npacket);
         hgetu4(datablock_header, "NDROP", &block_ndrop);
+        hgetu4(datablock_header, "NEXCESS", &block_nexcess);
         obs_npacket_total += block_npacket;
         obs_ndrop_total += block_ndrop;
+        obs_nexcess_total += block_nexcess;
         break;
       case ARMED:// If should ARM,
         if(state != ARMED){

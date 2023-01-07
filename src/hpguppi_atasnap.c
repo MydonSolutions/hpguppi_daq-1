@@ -5,6 +5,10 @@ void reset_datablock_stats(struct datablock_stats *d)
 {
   d->npacket=0;
   d->ndrop=0;
+  d->nexcess=0;
+  if(d->nants && d->nant_pkts) {
+    memset(d->nant_pkts, 0, d->nants*sizeof(uint32_t));
+  }
 }
 
 // (Re-)initialize some or all fields of datablock_stats bi.
@@ -13,7 +17,7 @@ void reset_datablock_stats(struct datablock_stats *d)
 // d->block_num is always set and the stats are always reset.
 // d->pkts_per_block is set of pkt_size > 0.
 void init_datablock_stats(struct datablock_stats *d,
-    ATA_IBV_OUT_DATABUF_T *dbout, int block_idx, int64_t block_num,
+    ATA_IBV_OUT_DATABUF_T *dbout, int block_idx,
     uint64_t pkts_per_block)
 {
   if(dbout) {
@@ -22,7 +26,6 @@ void init_datablock_stats(struct datablock_stats *d,
   if(block_idx >= 0) {
     d->block_idx = block_idx;
   }
-  d->block_num = block_num;
   if(pkts_per_block > 0) {
     d->pkts_per_block = pkts_per_block;
   }
@@ -33,8 +36,15 @@ void init_datablock_stats(struct datablock_stats *d,
 void block_stack_push(struct datablock_stats *d, int nblock)
 {
     int i;
-    for (i=1; i<nblock; i++)
-        memcpy(&d[i-1], &d[i], sizeof(struct datablock_stats));
+    uint32_t *nants_pkts_ptr;
+    for (i=1; i<nblock; i++) {
+      nants_pkts_ptr = d[i-1].nant_pkts;
+      memcpy(&d[i-1], &d[i], sizeof(struct datablock_stats));
+      d[i-1].nant_pkts = nants_pkts_ptr;
+      if (d[i-1].nants && d[i-1].nant_pkts) {
+        memcpy(d[i-1].nant_pkts, d[i].nant_pkts, d[i-1].nants*sizeof(uint32_t));
+      }
+    }
 }
 
 // Update block's header info and set filled status (i.e. hand-off to downstream)
@@ -46,26 +56,34 @@ void finalize_block(struct datablock_stats *d)
   }
   char *header = datablock_stats_header(d);
   char dropstat[128];
-  if(d->pkts_per_block > d->npacket) {
+  if(d->pkts_per_block >= d->npacket) {
     d->ndrop = d->pkts_per_block - d->npacket;
   }
-  else if(d->pkts_per_block < d->npacket) { // Should never happen, so warn about it
+  else {
+    d->nexcess = d->npacket - d->pkts_per_block;
     hashpipe_warn(__FUNCTION__, "block #%d has too many packets (%u > %u pkts_per_block)", d->block_idx, d->npacket, d->pkts_per_block);
   }
 
-  sprintf(dropstat, "%d/%lu", d->ndrop, d->pkts_per_block);
+  sprintf(dropstat, "%ld/%lu", d->ndrop, d->pkts_per_block);
   hputi4(header, "NPKT", d->npacket);
   hputi4(header, "NDROP", d->ndrop);
+  hputi4(header, "NEXCESS", d->nexcess);
   hputs(header, "DROPSTAT", dropstat);
+  if (d->nants && d->nant_pkts) {
+    char ant_stat_key[9];
+    for(int i = 0; i < d->nants; i++) {
+      sprintf(ant_stat_key, "~ANPKT%02d", i%100);
+      hputu4(header, ant_stat_key, d->nant_pkts[i]);
+    }
+  }
   hpguppi_databuf_set_filled(d->dbout, d->block_idx);
 }
 
-// Advance to next block in data buffer.  This new block will contain
-// absolute block block_num.
+// Advance to next block in data buffer.
 //
 // NB: The caller must wait for the new data block to be free after this
 // function returns!
-void increment_block(struct datablock_stats *d, int64_t block_num)
+void increment_block(struct datablock_stats *d)
 {
   if(d->block_idx < 0) {
     hashpipe_warn(__FUNCTION__,
@@ -78,7 +96,6 @@ void increment_block(struct datablock_stats *d, int64_t block_num)
   }
 
   d->block_idx = (d->block_idx + 1) % d->dbout->header.n_block;
-  d->block_num = block_num;
   d->packet_idx += d->pktidx_per_block;
   reset_datablock_stats(d);
 }
@@ -429,14 +446,14 @@ char align_blk0_with_obsstart(uint64_t * blk0_start_pktidx, uint64_t obsstart, u
   //      >__0___|___|
   //      |^^|offset
   //      0___|___...
-  hashpipe_info(
-    __FUNCTION__,
-    "blk0_start_pktidx: %ld, obsstart: %ld, pktidx_per_block: %ld, ATASNAP_DEFAULT_PKTNTIME: %d", 
-    *blk0_start_pktidx,
-    obsstart,
-    pktidx_per_block,
-    ATASNAP_DEFAULT_PKTNTIME
-  );
+  // hashpipe_info(
+  //   __FUNCTION__,
+  //   "blk0_start_pktidx: %ld, obsstart: %ld, pktidx_per_block: %ld, ATASNAP_DEFAULT_PKTNTIME: %d", 
+  //   *blk0_start_pktidx,
+  //   obsstart,
+  //   pktidx_per_block,
+  //   ATASNAP_DEFAULT_PKTNTIME
+  // );
 
   if ((*blk0_start_pktidx - obsstart) % pktidx_per_block == 0) {
     return 0;
@@ -446,10 +463,10 @@ char align_blk0_with_obsstart(uint64_t * blk0_start_pktidx, uint64_t obsstart, u
   // adjust to the blk0_start_pktidx-closest pktidx_per_block distance away from obsstart
   *blk0_start_pktidx = obsstart - ((obsstart - *blk0_start_pktidx ) / pktidx_per_block) * pktidx_per_block;
 
-  hashpipe_info(
-    __FUNCTION__,
-    "working blocks reinit to align pktstart to obsstart: blk0=%ld",
-    *blk0_start_pktidx
-  );
+  // hashpipe_info(
+  //   __FUNCTION__,
+  //   "working blocks reinit to align pktstart to obsstart: blk0=%ld",
+  //   *blk0_start_pktidx
+  // );
   return 1;
 }
