@@ -13,9 +13,9 @@
 // but this keeps things 4K (i.e. page) aligned.
 #define ALIGNMENT_SIZE (4096)
 
-#define N_INPUT_BLOCKS 12
+#define N_INPUT_BLOCKS 6
 #define BLOCK_HDR_SIZE  (5*80*512)      // in bytes, from guppi_daq_server
-#define BLOCK_DATA_SIZE (128*1024*1024) // in bytes, from guppi_daq_server
+#define BLOCK_DATA_SIZE (16*128*32768*2*2) // in bytes
 
 typedef struct hpguppi_input_block {
   char hdr[BLOCK_HDR_SIZE];
@@ -124,6 +124,19 @@ static inline char *_hpguppi_databuf_data(hpguppi_databuf_t *d, int block_id) {
 
 static inline size_t _hpguppi_databuf_size(hpguppi_databuf_t* d) {
     return d->header.block_size - d->header.header_size;
+}
+
+static inline uint64_t hpguppi_databuf_header_ntime(char *header) {
+    uint64_t blocksize_bytes=0, obsnchan=0, npol=0, nbits=0;
+    hgetu8(header, "BLOCSIZE", &blocksize_bytes);
+    hgetu8(header, "OBSNCHAN", &obsnchan);
+    hgetu8(header, "NPOL", &npol);
+    hgetu8(header, "NBITS", &nbits);
+    if (blocksize_bytes == 0) { hashpipe_warn(__FUNCTION__, "blocksize_bytes: %lu", blocksize_bytes);}
+    if (obsnchan == 0) { hashpipe_warn(__FUNCTION__, "obsnchan: %lu", obsnchan);}
+    if (npol == 0) { hashpipe_warn(__FUNCTION__, "npol: %lu", npol);}
+    if (nbits == 0) { hashpipe_warn(__FUNCTION__, "nbits: %lu", nbits);}
+    return (blocksize_bytes*8)/(obsnchan*npol*2*nbits);
 }
 
 hashpipe_databuf_t *hpguppi_databuf_attach_retry(int instance_id, int databuf_id);
