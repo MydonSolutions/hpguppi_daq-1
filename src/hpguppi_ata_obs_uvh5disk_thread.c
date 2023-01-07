@@ -152,8 +152,8 @@ static void *run(hashpipe_thread_args_t * args)
           hashpipe_status_lock_safe(st);
           {
               if (state == RECORD) {
-              hgetu8(st->buf, "NDROP", &ndrop_obs_current);
-              hputu8(st->buf, "OBSNDROP", ndrop_obs_current - ndrop_obs_start);
+                hgetu8(st->buf, "NDROP", &ndrop_obs_current);
+                hputu8(st->buf, "OBSNDROP", ndrop_obs_current - ndrop_obs_start);
               }
               hputu8(st->buf, "OBSNPKTS", obs_npacket_total);
               hputu4(st->buf, "OBSBLKPS", blocks_per_second);
@@ -363,7 +363,11 @@ static void *run(hashpipe_thread_args_t * args)
           uvh5_header->object_name = malloc(71);
           uvh5_header->object_name[70] = '\0';
           strncpy(uvh5_header->instrument, "UNKNOWN", 8);
-          hgets(datablock_header, "SRC_NAME", 70, uvh5_header->object_name);
+
+          hgets(st->buf, "SRC_NAME", 60, uvh5_header->object_name);
+          int src_name_len = strlen(uvh5_header->object_name);
+          uvh5_header->object_name[src_name_len-1]='.';
+          hgets(st->buf, "TUNING", 9, uvh5_header->object_name+src_name_len);
 
           uvh5_header->history = history;
           uvh5_header->phase_type = "phased";
