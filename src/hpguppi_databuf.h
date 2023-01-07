@@ -101,24 +101,24 @@ typedef struct hpguppi_databuf {
     _hpguppi_databuf_size((hpguppi_databuf_t*) d)
 
 static inline char *_hpguppi_databuf_header(hpguppi_databuf_t *d, int block_id) {
-    if(block_id < 0 || d->header.n_block < block_id) {
+    if(block_id < 0 || d->header.n_block <= block_id) {
         hashpipe_error(__FUNCTION__,
             "block_id %s out of range [0, %d)",
             block_id, d->header.n_block);
         return NULL;
     } else {
-        return d->block[0].hdr + block_id*d->header.block_size;
+        return d->block->hdr + block_id*d->header.block_size;
     }
 }
 
 static inline char *_hpguppi_databuf_data(hpguppi_databuf_t *d, int block_id) {
-    if(block_id < 0 || d->header.n_block < block_id) {
+    if(block_id < 0 || d->header.n_block <= block_id) {
         hashpipe_error(__FUNCTION__,
             "block_id %s out of range [0, %d)",
             block_id, d->header.n_block);
         return NULL;
     } else {
-        return d->block[0].data + block_id*d->header.block_size;
+        return d->block->data  + block_id*d->header.block_size;
     }
 }
 
