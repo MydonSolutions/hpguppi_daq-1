@@ -397,7 +397,7 @@ struct ata_snap_obs_info {
 #define ATASNAP_DEFAULT_PKTNPOL         (     2)
 #define ATASNAP_DEFAULT_TIME_NBITS      (     4)
 #define ATASNAP_DEFAULT_PKTNCHAN        (   256)
-#define ATASNAP_DEFAULT_PKTNTIME        (    16)
+#define ATASNAP_DEFAULT_PKTNTIME        (    32)
 #define ATASNAP_DEFAULT_PKT_SIZE        (  8208)
 #define ATASNAP_DEFAULT_PKT_PER_BLK     ( 16834)
 #define ATASNAP_DEFAULT_PKTIDX_PER_BLK  (262144)
