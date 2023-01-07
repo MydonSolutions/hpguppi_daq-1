@@ -82,8 +82,16 @@ static void *run(hashpipe_thread_args_t *args)
   xgpu_error = xgpuInit(&xgpu_context, cudaDeviceId);
   if (xgpu_error)
   {
-    fprintf(stderr, "xgpuInit returned error code %d\n", xgpu_error); //XXX do something
+    hashpipe_error(thread_name, "xgpuInit returned error code %d\n", xgpu_error); //XXX do something
+    pthread_exit(NULL);
   }
+  hashpipe_info(thread_name, "xGPU: triLength %llu", xgpu_info.triLength);
+  
+  hashpipe_status_lock_safe(st);
+  {
+    hputu8(st->buf, "X_TRILEN", xgpu_info.triLength);
+  }
+  hashpipe_status_unlock_safe(st);
 
   /* Set I/O priority class for this thread to "real time" */
   if (ioprio_set(IOPRIO_WHO_PROCESS, 0, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 7)))
@@ -133,16 +141,21 @@ static void *run(hashpipe_thread_args_t *args)
     memcpy(&ts_stop_recv, &ts_now, sizeof(struct timespec));
 
     databuf_ptr = hpguppi_databuf_header(dbin, curblock_in);
-    hgetu8(databuf_ptr, "PIPERBLK", &timesample_perblock);// coincident
     hgetu4(databuf_ptr, "NCHAN", &ant_nchan);
     hgetu4(databuf_ptr, "NPOL", &npol);
+
+    uint64_t blocksize_bytes, obsnchan, nbits;
+    hgetu8(databuf_ptr, "BLOCSIZE", &blocksize_bytes);
+    hgetu8(databuf_ptr, "OBSNCHAN", &obsnchan);
+    hgetu8(databuf_ptr, "NBITS", &nbits);
+    timesample_perblock = (blocksize_bytes*8)/(obsnchan*npol*2*nbits);
 
     if (xgpu_info.npol != npol ||
         //xgpu_info.nstation != nstation ||
         xgpu_info.nfrequency != ant_nchan ||
         xgpu_info.ntime != timesample_perblock)
     {
-      hashpipe_error(thread_name, "Correlating %u stations with %u channels and integration length %u\n\tObservation has %u channels and %u TimeSamplesPerBlock (PIPERBLK)\n",
+      hashpipe_error(thread_name, "Correlating %u stations with %u channels and integration length %u\n\tObservation has %u channels and %u TimeSamplesPerBlock\n",
                       xgpu_info.nstation, xgpu_info.nfrequency, xgpu_info.ntime,
                       ant_nchan, timesample_perblock);
 
