@@ -331,7 +331,7 @@ struct __attribute__ ((__packed__)) ata_snap_pkt {
 #define ATA_SNAP_PKT_NUMBER(ata_snap_pkt)   (uint64_t)__bswap_64(ata_snap_pkt->snaphdr.timestamp)
 #define ATA_SNAP_PKT_SCHAN(ata_snap_pkt)    __bswap_16(ata_snap_pkt->snaphdr.chan)
 #define ATA_SNAP_PKT_NCHAN(ata_snap_pkt)    __bswap_16(ata_snap_pkt->snaphdr.n_chans)
-#define ATA_SNAP_PKT_FENG_ID(ata_snap_pkt)  __bswap_16(ata_snap_pkt->snaphdr.feng_id)
+#define ATA_SNAP_PKT_FENG_ID(ata_snap_pkt)  (__bswap_16(ata_snap_pkt->snaphdr.feng_id) >> 2)
 
 // ATA SNAP header byte offset within (unpadded) packet
 #define ATA_SNAP_PKT_OFFSET_HEADER \
