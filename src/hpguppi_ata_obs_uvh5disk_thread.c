@@ -151,9 +151,11 @@ static void *run(hashpipe_thread_args_t * args)
           timestr[strlen(timestr)-1] = '\0'; // Chop off trailing newline
           hashpipe_status_lock_safe(st);
           {
+              if (state == RECORD) {
               hgetu8(st->buf, "NDROP", &ndrop_obs_current);
-              hputu8(st->buf, "OBSNPKTS", obs_npacket_total);
               hputu8(st->buf, "OBSNDROP", ndrop_obs_current - ndrop_obs_start);
+              }
+              hputu8(st->buf, "OBSNPKTS", obs_npacket_total);
               hputu4(st->buf, "OBSBLKPS", blocks_per_second);
               hputr4(st->buf, "OBSBLKMS",
                 round((double)fill_to_free_moving_sum_ns / N_XGPU_OUTPUT_BLOCKS) / 1e6);
