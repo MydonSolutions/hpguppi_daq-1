@@ -326,9 +326,9 @@ static void *run(hashpipe_thread_args_t * args)
               
               const int strlength = strlen(token);
               for(int p = 0; p < npols; p++){
-                inputpairs[inputpairs_index].antenna = malloc(strlength);// drop last Char (L.O. ID)
-                strncpy(inputpairs[inputpairs_index].antenna, token, strlength-1);
-                inputpairs[inputpairs_index].antenna[strlength-1] = '\0';
+                inputpairs[inputpairs_index].antenna = malloc(strlength+1);
+                strncpy(inputpairs[inputpairs_index].antenna, token, strlength);
+                inputpairs[inputpairs_index].antenna[strlength] = '\0';
 
                 inputpairs[inputpairs_index++].polarization = polarizations_list[p];
               }
