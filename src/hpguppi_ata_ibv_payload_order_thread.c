@@ -40,7 +40,7 @@
 #include "hpguppi_pktbuf.h"
 
 #include <omp.h>
-#define ATA_IBV_FOR_PACKET_THREAD_COUNT 8
+#define ATA_IBV_FOR_PACKET_THREAD_COUNT 12
 #define ATA_IBV_TRANSPOSE_PACKET_THREAD_COUNT 1
 #define ATA_IBV_THREAD_COUNT ATA_IBV_FOR_PACKET_THREAD_COUNT*ATA_IBV_TRANSPOSE_PACKET_THREAD_COUNT
 
@@ -134,7 +134,7 @@ static int init(hashpipe_thread_args_t *args)
     hgets(st->buf, "OBS_MODE", sizeof(obs_mode), obs_mode);
 
     // Prevent div-by-zero errors (should never happen...)
-    if(nants == 0) {
+    if(nants <= 0) {
       nants = 1;
     }
 
