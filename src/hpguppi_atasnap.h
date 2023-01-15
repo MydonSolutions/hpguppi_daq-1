@@ -438,7 +438,7 @@ ata_snap_obs_info_valid(const struct ata_snap_obs_info oi)
   return
     (oi.fenchan    != 0) &&
     (oi.nants      != 0) &&
-    (oi.nchan      != 0) &&
+    (oi.nchan      >= oi.pkt_nchan) &&
     (oi.pkt_npol   != 0) &&
     (oi.time_nbits != 0) &&
     (oi.pkt_ntime  == ATASNAP_DEFAULT_PKTNTIME) &&
