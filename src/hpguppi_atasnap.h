@@ -162,7 +162,7 @@
 #ifndef _HPGUPPI_ATASNAP_H_
 #define _HPGUPPI_ATASNAP_H_
 
-#define XGPU_BLOCK_NANTS 32 // TFP transposition related definition
+#define XGPU_BLOCK_NANTS 32 // TFP transposition related definition, must be a multiple of 16
 
 #define ATA_PAYLOAD_TRANSPOSE_FTP 0
 #define ATA_PAYLOAD_TRANSPOSE_TFP 1
@@ -635,6 +635,8 @@ ata_snap_populate_block_related_fields(size_t block_size, struct ata_snap_obs_in
   if(prevpow2(oi->pktidx_per_block) != oi->pktidx_per_block){
     hashpipe_warn(__FUNCTION__, "Recommended that the BLOCK_DATA_SIZE be changed to %lu in order to have power of 2 (%d) packets per block.", 
       (oi->pkt_data_size-16)*((prevpow2(oi->pktidx_per_block)/oi->pkt_ntime)*oi->nants*(oi->nchan/oi->pkt_nchan)), prevpow2(oi->pktidx_per_block));
+    hashpipe_warn(__FUNCTION__, "Clamping the number of packets per block from %d to nearest smaller power of 2: %d.", oi->pktidx_per_block, prevpow2(oi->pktidx_per_block));
+    oi->pktidx_per_block = prevpow2(oi->pktidx_per_block);
   }
   oi->eff_block_size = oi->pkt_per_block*(oi->pkt_data_size-16);
 }
