@@ -272,7 +272,7 @@ int debug_i=0, debug_j=0;
   //     `ingest_span = ceil( NANTS / nants_min )`
 
   int wblk_idx;
-  const int n_wblock_ingest_span = 2;
+  const int n_wblock_ingest_span = 3;
   const int n_wblock = 3*n_wblock_ingest_span;
   struct datablock_stats wblk[n_wblock];
   memset(wblk, 0, n_wblock*sizeof(struct datablock_stats));
