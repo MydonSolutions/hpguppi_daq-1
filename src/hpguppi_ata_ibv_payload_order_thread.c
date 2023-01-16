@@ -234,28 +234,46 @@ int debug_i=0, debug_j=0;
   //       hpguppi_databuf_data(dbout, i) + BLOCK_DATA_SIZE - 1);
   // }
 
-  // The incoming packets are taken from blocks of the input databuf and then
-  // converted to GUPPI RAW format in blocks of the output databuf to pass to
-  // the downstream thread.  We currently support two active output blocks (aka
-  // "working blocks").  Working blocks are associated with absolute output
-  // block numbers, which are simply PKTIDX values divided by the number of
-  // packets per block (discarding any remainder).  Let the block numbers for
-  // the first working block (wblk[0]) be W.  The block number for the second
-  // working block (wblk[1]) will be W+1.  Incoming packets corresponding to
-  // block W or W+1 are placed in the corresponding data buffer block.
-  // Incoming packets for block W+2 cause block W to be "finalized" and handed
-  // off to the downstream thread, working block 1 moves to working block 0 and
-  // working block 1 is incremented to be W+2.  Things get "interesting" when a
-  // packet is recevied for block < W or block > W+2.  Packets for block W-1
-  // are ignored.  Packets with PKTIDX P corresponding block < W-1 or block >
-  // W+2 cause the current working blocks' block numbers to be reset such that
-  // W will refer to the block containing P and W+1 will refer to the block
-  // after that.
-  //
-  // wblk is a two element array of block_info structures (i.e. the working
-  // blocks)
+  // The incoming databuffer is filled with packets in an arbitrary order.
+  // This thread accesses the payload header of each packet and determines
+  // which index within its buffer to place the payload data. The databuffer
+  // can be populated in one of 3 configurations:
+  //   - ATA_PAYLOAD_TRANSPOSE_FTP: FrequencyChannel (slowest), Time, Polarization (fastest)
+  //   - ATA_PAYLOAD_TRANSPOSE_TFP: Time (slowest), FrequencyChannel, Polarization (fastest)
+  //   - ATA_PAYLOAD_TRANSPOSE_TFP_DP4A: Time Major (slowest), Time, Polarization (fastest)
+
+  // This thread considers a "working block range" when receiving the packets.
+  // The working block range has 3 equally sized sections, sized according to 
+  // the ingest-span (see below).
+  //  1. The foremost section is for blocks that are about to be finalised
+  //     (passed downstream).
+  //  2. The next section holds blocks that are the running region of interest
+  //     (where payloads are most likely to fall)
+  //  3. The final section holds blocks that are used to trigger the finalisation
+  //     of the first section. Finalisation of the first block occurs when the
+  //     final block has one or more payloads transferred to it.
+
+  // Each block has a defined length for the time-sample dimension and so has a
+  // packet-index range. The incoming databuffer is the same size in memory but
+  // of course does not have any definitions of how many frequency-channels nor
+  // antenna nor time-samples. The consequence is that the incoming databuffer
+  // will (on average) critically populate 1 internal databuffer if it is
+  // receiving data shaped in accordance to the internal buffer (NANTS*NCHAN*NPOL).
+  // In this scenario the ingest-span equates to 1 working-block. Due to the added
+  // space of the ethernet and IP headers, as well as the padding from IBVerbs, this
+  // ingest-span of 1 is stable if antenna-sources never falter, and are always 
+  // exactly NANTS in number. Of course NANTS should always be set to the maximum
+  // number of antenna-sources expected within any observation. In order to account
+  // for a more dynamic number of antenna-sources, the ingest-span should be increased!
+  //   - If antenna-sources falls below NANTS the incoming databuffer will be filled
+  //     less often (lower ingest rate) and so span more time, meaning a single
+  //     ingest-databuffer has packet payloads that go into more than 1 working block.
+  //   - The range of dynamism in the antenna-sources determines the ingest span:
+  //     `ingest_span = ceil( NANTS / nants_min )`
+
   int wblk_idx;
-  const int n_wblock = 3;
+  const int n_wblock_ingest_span = 2;
+  const int n_wblock = 3*n_wblock_ingest_span;
   struct datablock_stats wblk[n_wblock];
   memset(wblk, 0, n_wblock*sizeof(struct datablock_stats));
   uint32_t *thread_wblk_nant_pkt_count = NULL;
@@ -691,23 +709,23 @@ int debug_i=0, debug_j=0;
 
             if(0 <= wblk_idx && wblk_idx < n_wblock) {
               if(transfer_payloads) {
-              // Copy packet data to data buffer of working block
-              dest_feng_pktidx_offset = ((PKT_PAYLOAD_CP_T*)
-                datablock_stats_data(wblk+wblk_idx))
-                + (pkt_info.pktidx%obs_info.pktidx_per_block)*time_byte_stride // offset for time// for TFP/_DP4A: 'Nants' is faster than 'Chans'
-                + (pkt_info.pkt_schan-obs_info.schan)*channel_byte_stride
-                + (pkt_info.feng_id*antenna_byte_stride); // offset for frequency
+                // Copy packet data to data buffer of working block
+                dest_feng_pktidx_offset = ((PKT_PAYLOAD_CP_T*)
+                  datablock_stats_data(wblk+wblk_idx))
+                  + (pkt_info.pktidx%obs_info.pktidx_per_block)*time_byte_stride // offset for time// for TFP/_DP4A: 'Nants' is faster than 'Chans'
+                  + (pkt_info.pkt_schan-obs_info.schan)*channel_byte_stride
+                  + (pkt_info.feng_id*antenna_byte_stride); // offset for frequency
               
-              #if ATA_IBV_TRANSPOSE_PACKET_THREAD_COUNT > 1
-                #pragma omp parallel for\
-                num_threads (ATA_IBV_TRANSPOSE_PACKET_THREAD_COUNT)
-              #endif
-              COPY_PACKET_PAYLOAD_FORLOOP(
-                  dest_feng_pktidx_offset,
-                  p_payload,
-                  obs_info.pkt_nchan,
-                  channel_byte_stride,
-                  time_byte_stride);
+                #if ATA_IBV_TRANSPOSE_PACKET_THREAD_COUNT > 1
+                  #pragma omp parallel for\
+                  num_threads (ATA_IBV_TRANSPOSE_PACKET_THREAD_COUNT)
+                #endif
+                COPY_PACKET_PAYLOAD_FORLOOP(
+                    dest_feng_pktidx_offset,
+                    p_payload,
+                    obs_info.pkt_nchan,
+                    channel_byte_stride,
+                    time_byte_stride);
               }
               // Count packet for block and for processing stats
               thread_wblk_nant_pkt_count[(omp_get_thread_num()*n_wblock + wblk_idx)*obs_info.nants + pkt_info.feng_id] += 1;
@@ -836,28 +854,32 @@ int debug_i=0, debug_j=0;
     }
     hashpipe_status_unlock_safe(st);
     
-    if(wblk[n_wblock-1].npacket > 0) {
+    for(int ingest_span_i = 0; ingest_span_i < n_wblock_ingest_span; ingest_span_i++) {
+      if(wblk[n_wblock-n_wblock_ingest_span].npacket == 0) {
+        break;
+      }
+
       // Time to advance the blocks!!!
       clock_gettime(CLOCK_MONOTONIC, &ts_stop_block);
 
       if(transfer_payloads) {
-      datablock_header = datablock_stats_header(&wblk[0]);
-      hputu8(datablock_header, "PKTIDX", wblk[0].packet_idx);
-      hputu8(datablock_header, "BLKSTART", wblk[0].packet_idx);
-      hputu8(datablock_header, "BLKSTOP", wblk[1].packet_idx);
+        datablock_header = datablock_stats_header(&wblk[0]);
+        hputu8(datablock_header, "PKTIDX", wblk[0].packet_idx);
+        hputu8(datablock_header, "BLKSTART", wblk[0].packet_idx);
+        hputu8(datablock_header, "BLKSTOP", wblk[1].packet_idx);
         hputu8(datablock_header, "PKTSTART", obs_start_seq_num);
         hputu8(datablock_header, "PKTSTOP", obs_stop_seq_num);
-      // Finalize first working block
-      finalize_block(wblk);
+        // Finalize first working block
+        finalize_block(wblk);
         // Update ndrop/excess counter
-      npacket_drop += wblk->ndrop;
+        npacket_drop += wblk->ndrop;
         npacket_excess += wblk->nexcess;
-      // Shift working blocks
-      block_stack_push(wblk, n_wblock);
-      // Increment last working block
+        // Shift working blocks
+        block_stack_push(wblk, n_wblock);
+        // Increment last working block
         increment_block(&wblk[n_wblock-1]);
-      // Wait for new databuf data block to be free
-      wait_for_block_free(&wblk[n_wblock-1], st, status_key);
+        // Wait for new databuf data block to be free
+        wait_for_block_free(&wblk[n_wblock-1], st, status_key);
       }
       else {
         // migrate working-block-range without changing buffer-indices.
