@@ -637,6 +637,9 @@ ata_snap_populate_block_related_fields(size_t block_size, struct ata_snap_obs_in
       (oi->pkt_data_size-16)*((prevpow2(oi->pktidx_per_block)/oi->pkt_ntime)*oi->nants*(oi->nchan/oi->pkt_nchan)), prevpow2(oi->pktidx_per_block));
     hashpipe_warn(__FUNCTION__, "Clamping the number of packets per block from %d to nearest smaller power of 2: %d.", oi->pktidx_per_block, prevpow2(oi->pktidx_per_block));
     oi->pktidx_per_block = prevpow2(oi->pktidx_per_block);
+    // update the apparent number of packets per block to match
+    oi->pkt_per_block = oi->pktidx_per_block / oi->pkt_ntime;
+    oi->pkt_per_block *= (oi->nants*(oi->nchan/oi->pkt_nchan));
   }
   oi->eff_block_size = oi->pkt_per_block*(oi->pkt_data_size-16);
 }
