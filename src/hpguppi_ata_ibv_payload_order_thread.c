@@ -332,6 +332,7 @@ int debug_i=0, debug_j=0;
 
   // Structure to hold feng info from packet
   struct ata_snap_pkt_info pkt_info = {0};
+  int64_t wblk0_relative_pktidx;
 
   // Variables for tracking timing stats
   //
@@ -673,6 +674,7 @@ int debug_i=0, debug_j=0;
           p_pkt,\
           pkt_info,\
           p_payload,\
+          wblk0_relative_pktidx,\
           wblk_idx,\
           dest_feng_pktidx_offset\
         )\
@@ -695,7 +697,7 @@ int debug_i=0, debug_j=0;
           ata_snap_parse_ibv_packet(p_pkt, &pkt_info);
 
         // Make the packet index relative to the working-block range
-        pkt_info.pktidx = pkt_info.pktidx - wblk[0].packet_idx;
+        wblk0_relative_pktidx = pkt_info.pktidx - wblk[0].packet_idx;
 
         // Only copy packet data and count packet if its wblk_idx is valid
         switch(check_pkt_observability_sans_idx(&obs_info, &pkt_info)){
@@ -705,14 +707,14 @@ int debug_i=0, debug_j=0;
             // working block!
 
             // Get packet's block number (relative to the first block's starting index).
-            wblk_idx = pkt_info.pktidx / obs_info.pktidx_per_block;
+            wblk_idx = wblk0_relative_pktidx / obs_info.pktidx_per_block;
 
             if(0 <= wblk_idx && wblk_idx < n_wblock) {
               if(transfer_payloads) {
                 // Copy packet data to data buffer of working block
                 dest_feng_pktidx_offset = ((PKT_PAYLOAD_CP_T*)
                   datablock_stats_data(wblk+wblk_idx))
-                  + (pkt_info.pktidx%obs_info.pktidx_per_block)*time_byte_stride // offset for time// for TFP/_DP4A: 'Nants' is faster than 'Chans'
+                  + (wblk0_relative_pktidx%obs_info.pktidx_per_block)*time_byte_stride // offset for time// for TFP/_DP4A: 'Nants' is faster than 'Chans'
                   + (pkt_info.pkt_schan-obs_info.schan)*channel_byte_stride
                   + (pkt_info.feng_id*antenna_byte_stride); // offset for frequency
               
@@ -734,7 +736,7 @@ int debug_i=0, debug_j=0;
               // Happens on the first packet that is outside of wblks' scope,
               // or if a packet arrives late, consider n_wblock++
               LATE_PKTIDX_flagged = 1;
-              hashpipe_error(thread_name, "Packet ignored: determined wblk_idx = %d (%ld + %lu) [feng_id=%d]", wblk_idx, pkt_info.pktidx, wblk[0].packet_idx, pkt_info.feng_id);
+              hashpipe_error(thread_name, "Packet ignored: determined wblk_idx = %d (%ld + %lu) [feng_id=%d]", wblk_idx, wblk0_relative_pktidx, wblk[0].packet_idx, pkt_info.feng_id);
             }
             break;
           case PKT_OBS_FENG:
@@ -781,7 +783,7 @@ int debug_i=0, debug_j=0;
             if(!PKT_OBS_PKTIDX_flagged){
               obs_info_validity = OBS_INVALID_PKTIDX;
               hashpipe_error(thread_name, 
-                "Packet ignored: PKT_OBS_PKTIDX\n\tPKTIDX-block0_pktidx %ld %% %d ATASNAP_DEFAULT_PKTNTIME != 0",
+                "Packet ignored: PKT_OBS_PKTIDX\n\tPKTIDX %ld %% %d ATASNAP_DEFAULT_PKTNTIME != 0",
                 pkt_info.pktidx, ATASNAP_DEFAULT_PKTNTIME
               );
               PKT_OBS_PKTIDX_flagged = 1;
