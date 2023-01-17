@@ -28,9 +28,9 @@ ata:
   hashpipe_keyfile: /home/sonata
   environment:
     - 16:
-        - IRQBALANCE_BANNED_CPUS=00000000,3ffe3ffe
+        - IRQBALANCE_BANNED_CPULIST=00000000,3ffe3ffe
       24:
-        - IRQBALANCE_BANNED_CPUS=00003fff,fe3ffffe
+        - IRQBALANCE_BANNED_CPULIST=00003fff,fe3ffffe
     - ATASHAREDIR="/opt/mnt"
     - LD_LIBRARY_PATH=/home/sonata/src/hashpipe/src/.libs:/home/sonata/dev/hdf5_tests/build:/lib/x86_64-linux-gnu/:/opt/mnt/lib
   options:
@@ -120,9 +120,9 @@ dev:
   hashpipe_keyfile: /home/sonata
   environment:
     - 16:
-        - IRQBALANCE_BANNED_CPUS=00000000,3ffe3ffe
+        - IRQBALANCE_BANNED_CPULIST=00000000,3ffe3ffe
       24:
-        - IRQBALANCE_BANNED_CPUS=00003fff,fe3ffffe
+        - IRQBALANCE_BANNED_CPULIST=00003fff,fe3ffffe
     - ATASHAREDIR="/opt/mnt"
     - LD_LIBRARY_PATH=/home/sonata/src/hashpipe/src/.libs:/home/sonata/dev/hdf5_tests/build:/lib/x86_64-linux-gnu/:/opt/mnt/lib
   options:
@@ -217,10 +217,10 @@ vla:
   hashpipe_keyfile: /home/cosmic
   environment:
     - 16:
-        - IRQBALANCE_BANNED_CPUS=00000000,3ffe3ffe
+        - IRQBALANCE_BANNED_CPULIST=00000000,3ffe3ffe
       24:
-        - IRQBALANCE_BANNED_CPUS=00003fff,fe3ffffe
-    - LD_LIBRARY_PATH=/home/cosmic/dev/hashpipe/src/.libs:/home/cosmic/src/xGPU/src:/home/cosmic/src/uvh5c99/build:/home/cosmic/src/uvh5c99/build/subprojects/radiointerferometryc99:/home/cosmic/dev/blade/install:/home/cosmic/dev/blade/install/lib:/home/cosmic/dev/blade/install/lib/x86_64-linux-gnu
+        - IRQBALANCE_BANNED_CPULIST=00003fff,fe3ffffe
+    - LD_LIBRARY_PATH=/home/cosmic/dev/hashpipe/src/.libs:/home/cosmic/src/xGPU/src:/home/cosmic/src/uvh5c99/build:/home/cosmic/src/uvh5c99/build/subprojects/radiointerferometryc99:/home/cosmic/src/blade/install:/home/cosmic/src/blade/install/lib:/home/cosmic/src/blade/install/lib/x86_64-linux-gnu
     - ["CUDA_VISIBLE_DEVICES=0,1", "CUDA_VISIBLE_DEVICES=2,3"]
   options:
     - ibv:
@@ -289,9 +289,9 @@ vladev:
   hashpipe_keyfile: /home/cosmic
   environment:
     - 16:
-        - IRQBALANCE_BANNED_CPUS=00000000,3ffe3ffe
+        - IRQBALANCE_BANNED_CPULIST=00000000,3ffe3ffe
       24:
-        - IRQBALANCE_BANNED_CPUS=00003fff,fe3ffffe
+        - IRQBALANCE_BANNED_CPULIST=00003fff,fe3ffffe
     - LD_LIBRARY_PATH=/home/cosmic/dev/hashpipe/src/.libs:/home/cosmic/src/xGPU/src:/home/cosmic/src/uvh5c99/build:/home/cosmic/src/uvh5c99/build/subprojects/radiointerferometryc99
     - ["CUDA_VISIBLE_DEVICES=0,1", "CUDA_VISIBLE_DEVICES=2,3"]
   options:
@@ -299,7 +299,7 @@ vladev:
         - HPCONFIG=DEV_IBV-TFPDP4A-XGPU-UVH5
         - BACKEND=UVH5
         - PROJID=xGPU
-        - UVH5TELP=/opt/mnt/share/telinfo_ata.toml
+        - UVH5TELP=/home/cosmic/src/telinfo_vla.toml
         - POLES=RL
         - BINDPORT=50000
       ibv_null:
