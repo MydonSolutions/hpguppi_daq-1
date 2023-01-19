@@ -244,7 +244,7 @@ void hpguppi_read_obs_params(char *buf,
                              struct hpguppi_params *g,
                              struct psrfits *p)
 {
-    char base[200], dir[200], banknam[64];
+    char base[200], dir[200], banknam[64], obsid[72], tuning[72];
 
     // Software data-stream modification params
     get_int("DS_TIME", p->hdr.ds_time_fact, 1); // Time down-sampling
@@ -287,6 +287,8 @@ void hpguppi_read_obs_params(char *buf,
     get_str("FRONTEND", p->hdr.frontend, 24, "Unknown");
     get_str("BACKEND", p->hdr.backend, 24, "GUPPI");
     get_str("PROJID", p->hdr.project_id, 24, "Unknown");
+    get_str("OBSID", obsid, 72, "");
+    get_str("TUNING", tuning, 72, "");
     get_str("FD_POLN", p->hdr.poln_type, 8, "Unknown");
     get_str("POL_TYPE", p->hdr.poln_order, 16, "Unknown");
     get_int("SCANNUM", p->hdr.scan_number, 1);
@@ -354,6 +356,13 @@ void hpguppi_read_obs_params(char *buf,
     if (strstr("CAL", p->hdr.obs_mode)!=NULL) {
         sprintf(base, "%s_%05d_%s_%04d_cal", backend, p->hdr.start_day,
                 p->hdr.source, p->hdr.scan_number);
+    } else if (strlen(obsid) > 0) {
+        // base is OBSID_TUNING
+        if (strlen(tuning)) {
+            sprintf(base, "%s_%s", obsid, tuning);
+        } else {
+            sprintf(base, "%s", obsid);
+        }
     } else {
         // base is BACKEND_MJD_SEC_BLK_SRC_SCAN.
         sprintf(base, "%s_%05d_%05d_%06lld_%s_%04d", backend,
@@ -364,8 +373,10 @@ void hpguppi_read_obs_params(char *buf,
     sprintf(p->basefilename, "%s/%s", dir, base);
 #else
     // Use a $DATADIR/$PROJID/$BACKEND/$BANK prefix for files
-    if (strnlen(banknam, sizeof(banknam)) < 1)
+    if (strnlen(banknam, sizeof(banknam)) < 1) {
         snprintf(banknam, sizeof(banknam), ".");
+    }
+
     sprintf(p->basefilename, "%.72s/%s/%s%s/%c/%.71s", dir, p->hdr.project_id,
             p->hdr.backend, g->coherent ? "_CODD" : "",
             banknam[strnlen(banknam, sizeof(banknam))-1], base);
