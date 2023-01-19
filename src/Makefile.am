@@ -111,8 +111,12 @@ hpguppi_daq_la_LDFLAGS += -L"@FILTERBANKH5C99_LIBDIR@" -Wl,-rpath,"@FILTERBANKH5
 hpguppi_daq_la_LIBADD  += -lfilterbankh5c99 -lfilterbankc99
 hpguppi_daq_la_CFLAGS  += -I "@FILTERBANKH5C99_INCDIR@"
 
+if BLADE_ENABLED
+# ibuf_desc is hpguppi_blade_output_databuf_create
 hpguppi_threads += \
 		hpguppi_ata_fildisk_thread.c
+endif
+
 endif
 
 if CUDA_ENABLED
