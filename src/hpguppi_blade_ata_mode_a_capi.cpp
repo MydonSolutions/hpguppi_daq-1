@@ -13,10 +13,11 @@ extern "C" {
 using namespace Blade;
 using namespace Blade::Pipelines::ATA;
 
-using BladePipeline = ModeB<BLADE_ATA_MODE_A_OUTPUT_ELEMENT_T>;
+using BladePipeline = ModeB<CI8, BLADE_ATA_MODE_A_OUTPUT_ELEMENT_T>;
 
 static Vector<Device::CPU, F64> blockJulianDate({1});
 static Vector<Device::CPU, F64> blockDut1({1});
+static Vector<Device::CPU, U64> blockFrequencyChannelOffset({1});
 
 static struct {
     U64 StepCount = 0;
@@ -60,7 +61,7 @@ bool blade_ata_a_initialize(
 
     std::vector<XYZ> antennaPositions(ata_a_config.inputDims.NANTS);
     std::vector<RA_DEC> beamCoordinates(ata_a_config.beamformerBeams);
-    std::vector<std::complex<double>> antennaCalibrationsCpp(
+    std::vector<CF64> antennaCalibrationsCpp(
             ata_a_config.inputDims.NANTS*\
             ata_a_config.inputDims.NCHANS*\
             ata_a_config.inputDims.NPOLS);
@@ -85,41 +86,6 @@ bool blade_ata_a_initialize(
         .P = ata_a_config.inputDims.NPOLS,
     });
 
-    ArrayTensor phasorAntennaCalibrations = ArrayTensor<Device::CPU, CF64>({
-        ata_a_config.inputDims.NANTS,
-        ata_a_config.inputDims.NCHANS * ata_a_config.channelizerRate,
-        1,
-        ata_a_config.inputDims.NPOLS,
-    });
-
-    const size_t calAntStride = 1;
-    const size_t calPolStride = beamformerInputDimensions.numberOfAspects() * calAntStride;
-    const size_t calChnStride = beamformerInputDimensions.numberOfPolarizations() * calPolStride;
-
-    const size_t weightsPolStride = 1;
-    const size_t weightsChnStride = beamformerInputDimensions.numberOfPolarizations() * weightsPolStride;
-    const size_t weightsAntStride = beamformerInputDimensions.numberOfFrequencyChannels() * ata_a_config.channelizerRate * weightsChnStride;
-    BL_INFO("Expanding the {} coarse-channel coefficients by a factor of {}.", beamformerInputDimensions.numberOfFrequencyChannels(), ata_a_config.channelizerRate);
-
-    U64 inputIdx, frqIdx, outputIdx, antIdx, chnIdx, polIdx, fchIdx;
-    for (antIdx = 0; antIdx < beamformerInputDimensions.numberOfAspects(); antIdx++) {
-        for (chnIdx = 0; chnIdx < beamformerInputDimensions.numberOfFrequencyChannels(); chnIdx++) {
-            for (polIdx = 0; polIdx < beamformerInputDimensions.numberOfPolarizations(); polIdx++) {
-                inputIdx = chnIdx * calChnStride +
-                    polIdx * calPolStride + 
-                    antIdx * calAntStride;
-                for (fchIdx = 0; fchIdx < ata_a_config.channelizerRate; fchIdx++) {
-                    frqIdx = chnIdx * ata_a_config.channelizerRate + fchIdx;
-                    outputIdx = antIdx * weightsAntStride +
-                        polIdx * weightsPolStride +
-                        frqIdx * weightsChnStride;
-
-                    phasorAntennaCalibrations[outputIdx] = antennaCalibrationsCpp[inputIdx];
-                }
-            }
-        }
-    }
-
     State.RunnersInstances.B = Runner<BladePipeline>::New(
         numberOfWorkers,
         {
@@ -142,8 +108,9 @@ bool blade_ata_a_initialize(
                 .DEC = obs_phase_center_radecrad[1]
             },
             .phasorAntennaPositions = antennaPositions,
-            .phasorAntennaCalibrations = phasorAntennaCalibrations,
+            .phasorAntennaCoefficients = antennaCalibrationsCpp,
             .phasorBeamCoordinates = beamCoordinates,
+            .phasorAntennaCoefficientChannelRate = ata_a_config.channelizerRate,
 
             .beamformerIncoherentBeam = BLADE_ATA_MODE_A_OUTPUT_INCOHERENT_BEAM,
 
@@ -162,6 +129,8 @@ bool blade_ata_a_initialize(
     State.OutputPointerMap.reserve(numberOfWorkers);
     State.InputIdMap.reserve(numberOfWorkers);
     State.OutputIdMap.reserve(numberOfWorkers);
+
+    blockFrequencyChannelOffset[0] = 0;
 
     return true;
 }
@@ -281,6 +250,7 @@ bool blade_ata_a_compute_step() {
             Plan::TransferIn(worker, 
                             blockJulianDate,
                             blockDut1,
+                            blockFrequencyChannelOffset,
                             input);
 
             // Asynchronous CPU work
