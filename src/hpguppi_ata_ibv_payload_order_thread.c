@@ -166,6 +166,7 @@ static int init(hashpipe_thread_args_t *args)
     hputs(st->buf, status_key, "init");
     hputu8(st->buf, "PKTSTART", 0);
     hputu8(st->buf, "PKTSTOP", 0);
+    hputs(st->buf, "OBSID", ""); // clear this
 
     // Store bind port in status buffer (in case it was not there before).
     hputu4(st->buf, "BINDPORT", bindport);
