@@ -111,6 +111,7 @@ static void *run(hashpipe_thread_args_t * args)
   int directio = 0;
 
   blocks_per_file = blocks_per_file == 0 ? 1 :  blocks_per_file;
+  blocks_per_file = 64;
   hashpipe_info(thread_name, "Blocks per file: %d", blocks_per_file);
 
   unsigned char base_filename_stem_start;
