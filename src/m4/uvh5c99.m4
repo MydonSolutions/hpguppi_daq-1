@@ -33,13 +33,13 @@ AC_DEFUN([AX_CHECK_UVH5C99], [
 
     orig_LDFLAGS="${LDFLAGS}"
     LDFLAGS="${orig_LDFLAGS} -L${UVH5C99DIR}/lib"
-    AC_CHECK_LIB([uvh5], [UVH5permute_uvws],
+    AC_CHECK_LIB([uvh5], [UVH5write_keyword_string],
                 # Found
                 AC_SUBST(UVH5C99_LIBDIR,${UVH5C99DIR}/lib),
                 # Not found there, check UVH5C99DIR
-                AS_UNSET(ac_cv_lib_uvh5_UVH5permute_uvws)
+                AS_UNSET(ac_cv_lib_uvh5_UVH5write_keyword_string)
                 LDFLAGS="${orig_LDFLAGS} -L${UVH5C99DIR}"
-                AC_CHECK_LIB([uvh5], [UVH5permute_uvws],
+                AC_CHECK_LIB([uvh5], [UVH5write_keyword_string],
                             # Found
                             AC_SUBST(UVH5C99_LIBDIR,${UVH5C99DIR}),
                             # Not found there, error

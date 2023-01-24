@@ -126,6 +126,7 @@ static void *run(hashpipe_thread_args_t * args)
   char antnames_key[9] = {'\0'};
   UVH5_inputpair_t* inputpairs;
   int inputpairs_index;
+  char keyword_string[71];
 
   uint32_t blocks_per_second = 0;
 
@@ -361,7 +362,7 @@ static void *run(hashpipe_thread_args_t * args)
           uvh5_header->object_name[70] = '\0';
           strncpy(uvh5_header->instrument, "UNKNOWN", 8);
 
-          hgets(st->buf, "SRC_NAME", 60, uvh5_header->object_name);
+          hgets(st->buf, "SRC_NAME", 70, uvh5_header->object_name);
 
           uvh5_header->history = history;
           uvh5_header->phase_type = "phased";
@@ -442,6 +443,21 @@ static void *run(hashpipe_thread_args_t * args)
         //   hashpipe_error(thread_name, "Error opening file.");
         //   pthread_exit(NULL);
         // }
+        keyword_string[0] = '\0';
+        hgets(st->buf, "TUNING", 70, keyword_string);
+        if(strlen(keyword_string) > 0 ) {
+          UVH5write_keyword_string(&uvh5_file, "Tuning", keyword_string);
+        }
+        keyword_string[0] = '\0';
+        hgets(st->buf, "OBSID", 70, keyword_string);
+        if(strlen(keyword_string) > 0 ) {
+          UVH5write_keyword_string(&uvh5_file, "ObservationID", keyword_string);
+        }
+        keyword_string[0] = '\0';
+        hgets(st->buf, "NOTES", 70, keyword_string);
+        if(strlen(keyword_string) > 0 ) {
+          UVH5write_keyword_string(&uvh5_file, "Notes", keyword_string);
+        }
       }
 
       /* If we got block 0, write data to disk */
