@@ -362,9 +362,6 @@ static void *run(hashpipe_thread_args_t * args)
           strncpy(uvh5_header->instrument, "UNKNOWN", 8);
 
           hgets(st->buf, "SRC_NAME", 60, uvh5_header->object_name);
-          int src_name_len = strlen(uvh5_header->object_name);
-          uvh5_header->object_name[src_name_len-1]='.';
-          hgets(st->buf, "TUNING", 9, uvh5_header->object_name+src_name_len);
 
           uvh5_header->history = history;
           uvh5_header->phase_type = "phased";
