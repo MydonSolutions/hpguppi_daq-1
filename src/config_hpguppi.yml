@@ -232,6 +232,7 @@ vla:
         - HPCONFIG=IBV-TFP_DP4A-XGPU-UVH5
         - PROJID=xgpu
         - BACKEND=uvh5
+        - XGPUINT=8
         - UVH5TELP=/home/cosmic/dev/telinfo_vla.toml
         - POLS=rl
         - NPOL=2
@@ -255,6 +256,7 @@ vla:
       - hpguppi_ibvpkt_thread
       - hpguppi_ata_ibv_payload_order_thread
       - hpguppi_ata_xgpu_thread
+      - hpguppi_ata_xintegration_thread
       - hpguppi_ata_obs_uvh5disk_thread
   cpu_core_count_config:
     16:

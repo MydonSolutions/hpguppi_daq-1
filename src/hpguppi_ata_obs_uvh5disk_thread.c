@@ -443,19 +443,20 @@ static void *run(hashpipe_thread_args_t * args)
         //   hashpipe_error(thread_name, "Error opening file.");
         //   pthread_exit(NULL);
         // }
+        memset(keyword_string, '\0', 71);
         keyword_string[0] = '\0';
         hgets(st->buf, "TUNING", 70, keyword_string);
-        if(strlen(keyword_string) > 0 ) {
+        if(strlen(keyword_string) > 0) {
           UVH5write_keyword_string(&uvh5_file, "Tuning", keyword_string);
         }
         keyword_string[0] = '\0';
         hgets(st->buf, "OBSID", 70, keyword_string);
-        if(strlen(keyword_string) > 0 ) {
+        if(strlen(keyword_string) > 0) {
           UVH5write_keyword_string(&uvh5_file, "ObservationID", keyword_string);
         }
         keyword_string[0] = '\0';
         hgets(st->buf, "NOTES", 70, keyword_string);
-        if(strlen(keyword_string) > 0 ) {
+        if(strlen(keyword_string) > 0) {
           UVH5write_keyword_string(&uvh5_file, "Notes", keyword_string);
         }
       }
