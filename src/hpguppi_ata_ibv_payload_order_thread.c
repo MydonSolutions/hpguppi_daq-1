@@ -315,6 +315,8 @@ int debug_i=0, debug_j=0;
   int block_idx_in = 0;
   struct timespec timeout_in = {0, 50 * 1000 * 1000}; // 50 ms
   char * datablock_header;
+  char obs_id[72];
+  memset(obs_id, '\0', 72);
 
   // Variables for counting packets and bytes.
   uint64_t npacket=0, npacket_total=0, npacket_drop=0, ndrop_total=0, npacket_excess=0, nexcess_total=0;
@@ -513,6 +515,15 @@ int debug_i=0, debug_j=0;
               hashpipe_info(thread_name, "obs_start_seq_num change ignored while in observation.");
               obs_start_seq_num = prev_obs_start_seq_num;
             }
+            else {
+              hashpipe_status_lock_safe(st);
+              {
+                hgets(st->buf, "OBSID", sizeof(obs_id), obs_id);
+              }
+              hashpipe_status_unlock_safe(st);
+
+            }
+            
           }
           if(obs_stop_seq_num != prev_obs_stop_seq_num){
             hashpipe_info(thread_name, "obs_stop_seq_num changed %lu -> %lu", prev_obs_stop_seq_num, obs_stop_seq_num);
@@ -524,11 +535,9 @@ int debug_i=0, debug_j=0;
         hashpipe_status_lock_safe(st);
         {
           hputi8(st->buf, "NPKTS", npacket_total);
-          hgetu8(st->buf, "NDROP", &ndrop_total);
           ndrop_total += npacket_drop;
           hputi8(st->buf, "NDROP", ndrop_total);
 
-          hgetu8(st->buf, "NEXCESS", &nexcess_total);
           nexcess_total += npacket_excess;
           hputi8(st->buf, "NEXCESS", nexcess_total);
 
@@ -870,6 +879,7 @@ int debug_i=0, debug_j=0;
 
       if(transfer_payloads) {
         datablock_header = datablock_stats_header(&wblk[0]);
+        hputs(datablock_header, "OBSID", obs_id);
         hputu8(datablock_header, "PKTIDX", wblk[0].packet_idx);
         hputu8(datablock_header, "BLKSTART", wblk[0].packet_idx);
         hputu8(datablock_header, "BLKSTOP", wblk[1].packet_idx);
