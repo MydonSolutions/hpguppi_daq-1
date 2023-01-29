@@ -598,7 +598,7 @@ int debug_i=0, debug_j=0;
 
     // Only do the work if packets seem to be in range, or the downstream controlled `observation_complete` is low
     const char transfer_payloads = (pkt_info.pktidx <= obs_stop_seq_num || !observation_complete);
-    if(obs_info_validity >= OBS_SEEMS_VALID) {
+    if(obs_info_validity >= OBS_SEEMS_VALID || transfer_payloads) {
     // if(transfer_payloads) {
 
       // Check the first packet's timestamp, to determine reinit_blocks
@@ -607,7 +607,7 @@ int debug_i=0, debug_j=0;
 
       if(
         (pkt_info.pktidx >= wblk[n_wblock-1].packet_idx + obs_info.pktidx_per_block)
-        || (pkt_info.pktidx < wblk[0].packet_idx - obs_info.pktidx_per_block)
+        || (pkt_info.pktidx < wblk[0].packet_idx)
       ) {
           if(!observing && observation_complete) {
             flag_reinit_blks = 1;
@@ -623,18 +623,19 @@ int debug_i=0, debug_j=0;
           }
           else { // observing and first packet's timestamp is out of working range
             // only progress working range
-            while(pkt_info.pktidx > wblk[(n_wblock-1)/2].packet_idx + obs_info.pktidx_per_block) {
+            while(pkt_info.pktidx > wblk[n_wblock_ingest_span].packet_idx) {
               datablock_header = datablock_stats_header(&wblk[0]);
               hputu8(datablock_header, "PKTIDX", wblk[0].packet_idx);
               hputu8(datablock_header, "BLKSTART", wblk[0].packet_idx);
               hputu8(datablock_header, "BLKSTOP", wblk[1].packet_idx);
               hputu8(datablock_header, "RUSHBLKS", n_blks_rushed);
+              hputu8(datablock_header, "PKTSTART", obs_start_seq_num);
+              hputu8(datablock_header, "PKTSTOP", obs_stop_seq_num);
               // Finalize first working block
               finalize_block(wblk);
-              // Update ndrop counter
+              // Update ndrop/excess counter
               npacket_drop += wblk->ndrop;
               npacket_excess += wblk->nexcess;
-              // hashpipe_info(thread_name, "Block dropped %d packets.", wblk->ndrop);
               // Shift working blocks
               block_stack_push(wblk, n_wblock);
               // Increment last working block
@@ -645,10 +646,11 @@ int debug_i=0, debug_j=0;
             }
           }
       }
-      observing = pkt_info.pktidx >= obs_start_seq_num && pkt_info.pktidx < obs_stop_seq_num;
 
       if (flag_reinit_blks) { // Reinitialise working blocks
         flag_reinit_blks = 0;
+        // blk0_start_seq_num will be the index of the block before the running region
+        blk0_start_seq_num -= (n_wblock_ingest_span-1)*obs_info.pktidx_per_block;
         // Re-init working blocks for block number of current packet's block,
         // and clear their data buffers
         for(wblk_idx=0; wblk_idx<n_wblock; wblk_idx++) {
@@ -665,6 +667,7 @@ int debug_i=0, debug_j=0;
         }
         hashpipe_info(thread_name, "Working block range now has PKTIDX range [%ld, %ld)", wblk[0].packet_idx, wblk[n_wblock-1].packet_idx + obs_info.pktidx_per_block);
       }
+      observing = wblk[n_wblock-1].packet_idx >= obs_start_seq_num && wblk[0].packet_idx < obs_stop_seq_num;
 
       // if(pktbuf_info->slots_per_block % ATA_IBV_THREAD_COUNT != 0 ){
       //   hashpipe_warn(thread_name, "The slots per block (%lu) should be a multiple of the parallelism (%d) for optimal performance.", pktbuf_info->slots_per_block, ATA_IBV_THREAD_COUNT);
