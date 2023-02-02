@@ -92,7 +92,7 @@ static void *run(hashpipe_thread_args_t * args)
   double dut1 = 0.0;
   double tau;
   double chan_bw, obs_freq;
-  int npols, nants;
+  int npols, nants, schan, fenchan;
   size_t xgpu_output_elements;
 
   /* Misc counters, etc */
@@ -284,6 +284,8 @@ static void *run(hashpipe_thread_args_t * args)
           hgetr8(datablock_header, "CHAN_BW", &chan_bw);
           hgeti4(datablock_header, "NPOL", &npols);
           hgeti4(datablock_header, "NANTS", &nants);
+          hgeti4(datablock_header, "SCHAN", &schan);
+          hgeti4(datablock_header, "FENCHAN", &fenchan);
           hgetr8(datablock_header, "OBSFREQ", &obs_freq);
           hgets(datablock_header, "UVH5TELP", 71, tel_info_toml_filepath);
           hgets(datablock_header, "POLS", npols+1, polarizations_list);
@@ -346,11 +348,11 @@ static void *run(hashpipe_thread_args_t * args)
           free(inputpairs);
 
           uvh5_header->spw_array[0] = 1;
-          obs_freq -= uvh5_header->Nfreqs*chan_bw/2;
+          uvh5_header->freq_array[0] = (obs_freq - uvh5_header->Nfreqs*chan_bw/2) * 1e6;
           uvh5_header->channel_width[0] = chan_bw * 1e6;
           for(i = 0; i < uvh5_header->Nfreqs; i++) {
             uvh5_header->channel_width[i] = uvh5_header->channel_width[0];
-            uvh5_header->freq_array[i] = (obs_freq + (i+0.5)*chan_bw) * 1e6;
+            uvh5_header->freq_array[i] = uvh5_header->freq_array[0] + ((i+0.5)*chan_bw*1e6);
           }
 
           uvh5_header->instrument = malloc(71);
@@ -443,6 +445,16 @@ static void *run(hashpipe_thread_args_t * args)
         //   hashpipe_error(thread_name, "Error opening file.");
         //   pthread_exit(NULL);
         // }
+
+        UVH5write_keyword_int(&uvh5_file, "NumberOfFEngineChannels", fenchan);
+        UVH5write_keyword_int(&uvh5_file, "ObservedChannelOffset", schan);
+        UVH5write_keyword_double(&uvh5_file, "ObservedCenterFrequencyHz", obs_freq*1e6);
+        UVH5write_keyword_double(&uvh5_file, "ChannelBandwidthHz", chan_bw*1e6);
+        double fch1 = obs_freq - (schan + ((double)uvh5_header->Nfreqs/2.0))*chan_bw;
+        UVH5write_keyword_double(&uvh5_file, "FirstChannelFrequencyHz", fch1*1e6);
+        double fcent = fch1 + ((double)fenchan/2.0)*chan_bw;
+        UVH5write_keyword_double(&uvh5_file, "CenterFrequencyHz", fcent*1e6);
+
         memset(keyword_string, '\0', 71);
         keyword_string[0] = '\0';
         hgets(st->buf, "TUNING", 70, keyword_string);
