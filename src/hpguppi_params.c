@@ -361,7 +361,7 @@ void hpguppi_read_obs_params(char *buf,
     } else if (strlen(obsid) > 0) {
         // base is OBSID_TUNING
         if (strlen(tuning)) {
-            sprintf(base, "%s.%s.schan%d", obsid, tuning, schan%100000);
+            sprintf(base, "%s.%s.C%d", obsid, tuning, schan%100000);
         } else {
             sprintf(base, "%s", obsid);
         }
