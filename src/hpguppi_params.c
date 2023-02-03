@@ -245,6 +245,7 @@ void hpguppi_read_obs_params(char *buf,
                              struct psrfits *p)
 {
     char base[200], dir[200], banknam[64], obsid[72], tuning[72];
+    int schan;
 
     // Software data-stream modification params
     get_int("DS_TIME", p->hdr.ds_time_fact, 1); // Time down-sampling
@@ -288,6 +289,7 @@ void hpguppi_read_obs_params(char *buf,
     get_str("BACKEND", p->hdr.backend, 24, "GUPPI");
     get_str("PROJID", p->hdr.project_id, 24, "Unknown");
     get_str("OBSID", obsid, 72, "");
+    get_int("SCHAN", schan, 0);
     get_str("TUNING", tuning, 72, "");
     get_str("FD_POLN", p->hdr.poln_type, 8, "Unknown");
     get_str("POL_TYPE", p->hdr.poln_order, 16, "Unknown");
@@ -359,7 +361,7 @@ void hpguppi_read_obs_params(char *buf,
     } else if (strlen(obsid) > 0) {
         // base is OBSID_TUNING
         if (strlen(tuning)) {
-            sprintf(base, "%s_%s", obsid, tuning);
+            sprintf(base, "%s.%s.schan%d", obsid, tuning, schan%100000);
         } else {
             sprintf(base, "%s", obsid);
         }
