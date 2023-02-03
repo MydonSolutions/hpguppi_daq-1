@@ -518,6 +518,9 @@ int debug_i=0, debug_j=0;
               }
               hashpipe_status_unlock_safe(st);
             }
+            else {
+              flag_reinit_blks = 1;
+            }
           }
           if(obs_stop_seq_num != prev_obs_stop_seq_num){
             hashpipe_info(thread_name, "obs_stop_seq_num changed %lu -> %lu", prev_obs_stop_seq_num, obs_stop_seq_num);
