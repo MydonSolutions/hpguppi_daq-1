@@ -519,6 +519,7 @@ int debug_i=0, debug_j=0;
               hashpipe_status_unlock_safe(st);
             }
             else {
+              obs_start_seq_num = wblk[n_wblock_ingest_span-1].packet_idx;
               flag_reinit_blks = 1;
             }
           }
@@ -618,7 +619,6 @@ int debug_i=0, debug_j=0;
           if(!observing && observation_complete) {
             flag_reinit_blks = 1;
             blk0_start_seq_num = pkt_info.pktidx;
-            align_blk0_with_obsstart(&blk0_start_seq_num, obs_start_seq_num, obs_info.pktidx_per_block);
 
             // Should only happen when seeing first packet when obs_info is valid
             // warn in case it happens in other scenarios
@@ -655,6 +655,9 @@ int debug_i=0, debug_j=0;
 
       if (flag_reinit_blks) { // Reinitialise working blocks
         flag_reinit_blks = 0;
+
+        align_blk0_with_obsstart(&blk0_start_seq_num, obs_start_seq_num, obs_info.pktidx_per_block);
+
         // blk0_start_seq_num will be the index of the block before the running region
         blk0_start_seq_num -= (n_wblock_ingest_span-1)*obs_info.pktidx_per_block;
         // Re-init working blocks for block number of current packet's block,
