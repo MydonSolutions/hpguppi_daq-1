@@ -232,7 +232,7 @@ vla:
         - HPCONFIG=IBV-TFP_DP4A-XGPU-UVH5
         - PROJID=xgpu
         - BACKEND=uvh5
-        - XGPUINT=8
+        - XGPUINT=1
         - UVH5TELP=/home/cosmic/dev/telinfo_vla.toml
         - POLS=rl
         - NPOL=2
