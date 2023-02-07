@@ -519,7 +519,7 @@ int debug_i=0, debug_j=0;
               hashpipe_status_unlock_safe(st);
             }
             else {
-              obs_start_seq_num = wblk[n_wblock_ingest_span-1].packet_idx;
+              blk0_start_seq_num = wblk[n_wblock_ingest_span-1].packet_idx;
               flag_reinit_blks = 1;
             }
           }
