@@ -348,11 +348,12 @@ static void *run(hashpipe_thread_args_t * args)
           free(inputpairs);
 
           uvh5_header->spw_array[0] = 1;
+          // obs_freq is the center of a channel, so don't further offset to the center of channels
           uvh5_header->freq_array[0] = (obs_freq - uvh5_header->Nfreqs*chan_bw/2) * 1e6;
           uvh5_header->channel_width[0] = chan_bw * 1e6;
           for(i = 0; i < uvh5_header->Nfreqs; i++) {
             uvh5_header->channel_width[i] = uvh5_header->channel_width[0];
-            uvh5_header->freq_array[i] = uvh5_header->freq_array[0] + ((i+0.5)*chan_bw*1e6);
+            uvh5_header->freq_array[i] = uvh5_header->freq_array[0] + (i*chan_bw*1e6);
           }
 
           uvh5_header->instrument = malloc(71);
