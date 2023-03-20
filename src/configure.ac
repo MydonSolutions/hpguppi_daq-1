@@ -63,6 +63,9 @@ AX_CHECK_RADIOINTERFEROMETRY99
 # Check for filterbankh5
 AX_CHECK_FILTERBANKH5C99
 
+# Check for guppiraw
+AX_CHECK_GUPPIRAWC99
+
 # Checks for libraries.
 #AC_CHECK_LIB([pthread], [pthread_create])
 AC_CHECK_LIB([m], [cos])

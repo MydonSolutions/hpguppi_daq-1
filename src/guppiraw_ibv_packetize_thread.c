@@ -21,7 +21,87 @@
 #include "hpguppi_atasnap.h"
 #include "hpguppi_util.h"
 #include "hpguppi_pktbuf.h"
-#include "hpguppi_rawspec.h"
+#include "guppirawc99.h"
+
+typedef struct {
+  uint32_t guppi_blocsize;
+  uint32_t pktnchan, pktntime;
+  uint32_t blockn_ant, blockn_freq, blockn_pol;
+  uint32_t nbits;
+  uint32_t schan;
+  
+  uint64_t pktidx, pktstart, pktstop;
+
+  double obsfreq;
+  double obsbw;
+  double tbin;
+
+} guppiraw_block_meta_t;
+
+const uint64_t KEY_UINT64_BLOCSIZE = GUPPI_RAW_KEY_UINT64_ID_LE('B','L','O','C','S','I','Z','E');
+const uint64_t KEY_UINT64_PKTNCHAN = GUPPI_RAW_KEY_UINT64_ID_LE('P','K','T','N','C','H','A','N');
+const uint64_t KEY_UINT64_PKTNTIME = GUPPI_RAW_KEY_UINT64_ID_LE('P','K','T','N','T','I','M','E');
+const uint64_t KEY_UINT64_NANTS    = GUPPI_RAW_KEY_UINT64_ID_LE('N','A','N','T','S',' ',' ',' ');
+const uint64_t KEY_UINT64_OBSNCHAN = GUPPI_RAW_KEY_UINT64_ID_LE('O','B','S','N','C','H','A','N');
+const uint64_t KEY_UINT64_NPOL     = GUPPI_RAW_KEY_UINT64_ID_LE('N','P','O','L',' ',' ',' ',' ');
+const uint64_t KEY_UINT64_NBITS    = GUPPI_RAW_KEY_UINT64_ID_LE('N','B','I','T','S',' ',' ',' ');
+const uint64_t KEY_UINT64_SCHAN    = GUPPI_RAW_KEY_UINT64_ID_LE('S','C','H','A','N',' ',' ',' ');
+const uint64_t KEY_UINT64_PKTIDX   = GUPPI_RAW_KEY_UINT64_ID_LE('P','K','T','I','D','X',' ',' ');
+const uint64_t KEY_UINT64_PKTSTART = GUPPI_RAW_KEY_UINT64_ID_LE('P','K','T','S','T','A','R','T');
+const uint64_t KEY_UINT64_PKTSTOP  = GUPPI_RAW_KEY_UINT64_ID_LE('P','K','T','S','T','O','P',' ');
+const uint64_t KEY_UINT64_OBSFREQ  = GUPPI_RAW_KEY_UINT64_ID_LE('O','B','S','F','R','E','Q',' ');
+const uint64_t KEY_UINT64_OBSBW    = GUPPI_RAW_KEY_UINT64_ID_LE('O','B','S','B','W',' ',' ',' ');
+const uint64_t KEY_UINT64_TBIN     = GUPPI_RAW_KEY_UINT64_ID_LE('T','B','I','N',' ',' ',' ',' ');
+
+void guppiraw_parse_block_meta(const char* entry, void* block_meta) {
+  if(((uint64_t*)entry)[0] == KEY_UINT64_BLOCSIZE) {
+    hgetu4(entry, "BLOCSIZE", &((guppiraw_block_meta_t*)block_meta)->guppi_blocsize);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_PKTNCHAN) {
+    hgetu4(entry, "PKTNCHAN", &((guppiraw_block_meta_t*)block_meta)->pktnchan);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_PKTNTIME) {
+    hgetu4(entry, "PKTNTIME", &((guppiraw_block_meta_t*)block_meta)->pktntime);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_NANTS) {
+    hgetu4(entry, "NANTS", &((guppiraw_block_meta_t*)block_meta)->blockn_ant);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_OBSNCHAN) {
+    hgetu4(entry, "OBSNCHAN", &((guppiraw_block_meta_t*)block_meta)->blockn_freq);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_NPOL) {
+    hgetu4(entry, "NPOL", &((guppiraw_block_meta_t*)block_meta)->blockn_pol);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_NBITS) {
+    hgetu4(entry, "NBITS", &((guppiraw_block_meta_t*)block_meta)->nbits);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_SCHAN) {
+    hgetu4(entry, "SCHAN", &((guppiraw_block_meta_t*)block_meta)->schan);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_PKTIDX) {
+    hgetu8(entry, "PKTIDX", &((guppiraw_block_meta_t*)block_meta)->pktidx);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_PKTSTART) {
+    hgetu8(entry, "PKTSTART", &((guppiraw_block_meta_t*)block_meta)->pktstart);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_PKTSTOP) {
+    hgetu8(entry, "PKTSTOP", &((guppiraw_block_meta_t*)block_meta)->pktstop);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_OBSFREQ) {
+    hgetr8(entry, "OBSFREQ", &((guppiraw_block_meta_t*)block_meta)->obsfreq);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_OBSBW) {
+    hgetr8(entry, "OBSBW", &((guppiraw_block_meta_t*)block_meta)->obsbw);
+  }
+  else if(((uint64_t*)entry)[0] == KEY_UINT64_TBIN) {
+    hgetr8(entry, "TBIN", &((guppiraw_block_meta_t*)block_meta)->tbin);
+  }
+  else if(guppiraw_header_entry_is_END((uint64_t*)entry)) {
+    if(&((guppiraw_block_meta_t*)block_meta)->blockn_ant == 0) {
+      ((guppiraw_block_meta_t*)block_meta)->blockn_ant = 1;
+    }
+  }
+}
 
 // Parses the ibvpktsz string for chunk sizes and initializes db's pktbuf_info
 // accordingly.  Returns 0 on success or -1 on error.
@@ -96,18 +176,6 @@ parse_ibvpktsz(struct hpguppi_pktbuf_info *pktbuf_info, char * ibvpktsz, size_t 
   return 0;
 }
 
-int header_key_count(char* guppi_header) {
-  int key_count = 0;
-  while(strncmp(guppi_header+key_count*80, "END ", 4) != 0 && guppi_header[key_count*80 + 8] == '=') {
-    key_count++;
-  }
-  return key_count;
-}
-
-int directio_round_up(int size) {
-  return (size + 511) & ~ 511;
-}
-
 static int init(hashpipe_thread_args_t *args)
 {
   // Local aliases to shorten access to args fields
@@ -120,12 +188,7 @@ static int init(hashpipe_thread_args_t *args)
   char guppifile_pathstem[73] = {'\0'};
   char guppifile_path[sizeof(guppifile_pathstem)+10] = {'\0'};
 
-  uint32_t blockn_ant, blockn_freq, blockn_pol;
-  uint32_t schan=0;
-  uint32_t guppi_blocsize=0, blocsize=0;
-  uint32_t nbits=0;
-  uint32_t pktnchan=0, pktntime=0;
-  uint32_t directio=0;
+  uint32_t blocsize=0;
   char ibvpktsz[80];
   strcpy(ibvpktsz, "42,16,8192");
 
@@ -133,78 +196,56 @@ static int init(hashpipe_thread_args_t *args)
     hgets(st->buf, "RAWSTEM", sizeof(guppifile_pathstem), guppifile_pathstem);
   hashpipe_status_unlock_safe(st);
   sprintf(guppifile_path, "%s.0000.raw", guppifile_pathstem);
-  int guppifile_fd = open(guppifile_path, O_RDONLY);
-
-  if (guppifile_fd == -1) {
+  
+  guppiraw_iterate_info_t gr_iterate = {0};
+  if(guppiraw_iterate_open_with_user_metadata(&gr_iterate, guppifile_path, sizeof(guppiraw_block_meta_t), guppiraw_parse_block_meta)) {
     hashpipe_error(thread_name, "Failed to open `RAWSTEM` specified %s.", guppifile_path);
     return HASHPIPE_ERR_PARAM;
   }
 
   hashpipe_info(thread_name, "Opened %s.", guppifile_path);
-  // read critical keys from GUPPIRAW header and push to status buffer
-  char guppifile_header[MAX_RAW_HDR_SIZE];
-  // Read header (plus some data, probably)
-  read(guppifile_fd, guppifile_header, MAX_RAW_HDR_SIZE);
-  off_t guppifile_size = lseek(guppifile_fd, 0, SEEK_END);
-  close(guppifile_fd);
+  guppiraw_block_meta_t* guppiblock_metadata = (guppiraw_block_meta_t*)guppiraw_iterate_metadata(&gr_iterate)->user_data;
 
-  hgetu4(guppifile_header, "BLOCSIZE", &guppi_blocsize);
-  hgetu4(guppifile_header, "PKTNCHAN", &pktnchan);
-  hgetu4(guppifile_header, "PKTNTIME", &pktntime);
-  blockn_ant = 1; // default
-  hgetu4(guppifile_header, "NANTS", &blockn_ant);
-  hgetu4(guppifile_header, "OBSNCHAN", &blockn_freq);
-  hgetu4(guppifile_header, "NPOL", &blockn_pol);
-  hgetu4(guppifile_header, "NBITS", &nbits);
-  hgetu4(guppifile_header, "DIRECTIO", &directio);
-  hgetu4(guppifile_header, "SCHAN", &schan);
   hashpipe_info(thread_name, "Block parameters:");
-  hashpipe_info(thread_name, "\tBLOCSIZE = %d", guppi_blocsize);
-  hashpipe_info(thread_name, "\tPKTNCHAN = %d", pktnchan);
-  hashpipe_info(thread_name, "\tPKTNTIME = %d", pktntime);
-  hashpipe_info(thread_name, "\tNANTS    = %d", blockn_ant);
-  hashpipe_info(thread_name, "\tOBSNCHAN = %d", blockn_freq);
-  hashpipe_info(thread_name, "\tNPOL     = %d", blockn_pol);
-  hashpipe_info(thread_name, "\tNBITS    = %d", nbits);
-  hashpipe_info(thread_name, "\tSCHAN    = %d", schan);
+  hashpipe_info(thread_name, "\tBLOCSIZE = %d", guppiblock_metadata->guppi_blocsize);
+  hashpipe_info(thread_name, "\tPKTNCHAN = %d", guppiblock_metadata->pktnchan);
+  hashpipe_info(thread_name, "\tPKTNTIME = %d", guppiblock_metadata->pktntime);
+  hashpipe_info(thread_name, "\tNANTS    = %d", guppiblock_metadata->blockn_ant);
+  hashpipe_info(thread_name, "\tOBSNCHAN = %d", guppiblock_metadata->blockn_freq);
+  hashpipe_info(thread_name, "\tNPOL     = %d", guppiblock_metadata->blockn_pol);
+  hashpipe_info(thread_name, "\tNBITS    = %d", guppiblock_metadata->nbits);
+  hashpipe_info(thread_name, "\tSCHAN    = %d", guppiblock_metadata->schan);
 
   // set BLOCSIZE to the next lowest multiple of the RAW input BLOCSIZE
-  int header_size = header_key_count(guppifile_header)*80;
-  if(directio == 1) {
-    header_size = directio_round_up(header_size);
-    guppi_blocsize = directio_round_up(guppi_blocsize);
-  }
-  int guppifile_blocks = guppifile_size / (header_size + guppi_blocsize);
-  hashpipe_info(thread_name, "Ingest filesize: %llu (%d blocks)", guppifile_size, guppifile_blocks);
-  int blocksize_ratio = (hpguppi_databuf_size(db)/guppi_blocsize);
-  hashpipe_info(thread_name, "Blocksize ratio: %d", blocksize_ratio);
+  int blocksize_ratio = (hpguppi_databuf_size(db)/guppiblock_metadata->guppi_blocsize);
+  hashpipe_info(thread_name, "File blocksize: %d, Pipeline blocksize %d, Ratio (O/I): %d", hpguppi_databuf_size(db), guppiblock_metadata->guppi_blocsize, blocksize_ratio);
   // further restrict blocsize so that it is at most 1/4 the entire ingest file
   // 1/4 ensures 4 blocks are pushed downstream before the file completes. This
   // is sure to trigger the payload_order_thread to push at least one of its
   // n_wblock=3 working blocks further downstream, securing the inititialisation of the 
   // 'observation' and an output file.
-  if(blocksize_ratio > guppifile_blocks/4) {
-    blocksize_ratio = guppifile_blocks/4;
-    hashpipe_info(thread_name, "Reduced blocksize ratio: %d", blocksize_ratio);
+  if(blocksize_ratio > 4) {
+    blocksize_ratio = 4;
+    hashpipe_warn(thread_name, "Reduced blocksize ratio (O/I): %d", blocksize_ratio);
   }
-  blocsize = blocksize_ratio*guppi_blocsize;
+  blocsize = blocksize_ratio*guppiblock_metadata->guppi_blocsize;
 
   hashpipe_status_lock_safe(st);
   {
     // get keys that can override those values of the GUPPIRAW header
-    hgetu4(st->buf, "PKTNCHAN", &pktnchan);
-    hgetu4(st->buf, "PKTNTIME", &pktntime);
-    hputu4(st->buf, "BLOCSIZE", blocsize);
+    hgetu4(st->buf, "PKTNCHAN", &guppiblock_metadata->pktnchan);
+    hgetu4(st->buf, "PKTNTIME", &guppiblock_metadata->pktntime);
 
     // push keys
-    hputu4(st->buf, "RAWBLKSZ", guppi_blocsize);
-    hputu4(st->buf, "PKTNCHAN", pktnchan);
-    hputu4(st->buf, "PKTNTIME", pktntime);
-    hputu4(st->buf, "NANTS", blockn_ant);
-    hputu4(st->buf, "OBSNCHAN", blockn_freq);
-    hputu4(st->buf, "NPOL", blockn_pol);
-    hputu4(st->buf, "NBITS", nbits);
-    hputu4(st->buf, "SCHAN", schan);
+    hputu4(st->buf, "BLOCSIZE", blocsize);
+    hputu4(st->buf, "RAWBLKSZ", guppiblock_metadata->guppi_blocsize);
+    hputu4(st->buf, "PKTNCHAN", guppiblock_metadata->pktnchan);
+    hputu4(st->buf, "PKTNTIME", guppiblock_metadata->pktntime);
+    hputu4(st->buf, "NANTS", guppiblock_metadata->blockn_ant);
+    hputu4(st->buf, "OBSNCHAN", guppiblock_metadata->blockn_freq);
+    hputu4(st->buf, "NPOL", guppiblock_metadata->blockn_pol);
+    hputu4(st->buf, "NBITS", guppiblock_metadata->nbits);
+    hputu4(st->buf, "SCHAN", guppiblock_metadata->schan);
 
     hgets(st->buf, "IBVPKTSZ", sizeof(ibvpktsz), ibvpktsz);
     hputs(st->buf, "IBVPKTSZ", ibvpktsz);
@@ -220,11 +261,11 @@ static int init(hashpipe_thread_args_t *args)
     return HASHPIPE_ERR_PARAM;
   }
   
-  if(pktbuf_info->chunks[2].chunk_size < (pktnchan*pktntime*blockn_pol*2*nbits)/8) {
+  if(pktbuf_info->chunks[2].chunk_size < (guppiblock_metadata->pktnchan*guppiblock_metadata->pktntime*guppiblock_metadata->blockn_pol*2*guppiblock_metadata->nbits)/8) {
     hashpipe_error(
       thread_name,
       "pktbuf_info->chunks[2].chunk_size (%d) < (%d*%d*%d*2*%d/8) pktnchan*pktntime*npol*nbits/8",
-      pktbuf_info->chunks[2].chunk_size, pktnchan, pktntime, blockn_pol, nbits
+      pktbuf_info->chunks[2].chunk_size, guppiblock_metadata->pktnchan, guppiblock_metadata->pktntime, guppiblock_metadata->blockn_pol, guppiblock_metadata->nbits
     );
     return HASHPIPE_ERR_PARAM;
   }
@@ -270,7 +311,6 @@ static void * run(hashpipe_thread_args_t * args)
   int guppifile_i = 0;
   off_t guppifile_pos;
   int guppifile_fd;
-  rawspec_raw_hdr_t raw_hdr;
 
   /* start up */
   hashpipe_status_lock_safe(st);
@@ -328,48 +368,46 @@ static void * run(hashpipe_thread_args_t * args)
   sprintf(guppifile_path, "%s.%04d.raw", guppifile_pathstem, guppifile_i%10000);
   guppifile_fd = open(guppifile_path, O_RDONLY);
 
+  guppiraw_block_info_t gr_blockinfo = {0};
+  guppiraw_metadata_t* metadata = &gr_blockinfo.metadata;
+  metadata->user_data = malloc(sizeof(guppiraw_block_meta_t));
+  memset(metadata->user_data, 0, sizeof(guppiraw_block_meta_t));
+  metadata->user_callback = guppiraw_parse_block_meta;
+  guppiraw_block_meta_t* guppiblock_metadata = metadata->user_data;
+
   while(guppifile_fd != -1) {
     hashpipe_info(thread_name, "Opened %s.", guppifile_path);
 
     if(guppifile_i == 0) {
       // read critical keys from GUPPIRAW header and push to status buffer
-      char guppifile_header[MAX_RAW_HDR_SIZE];
-      // Read header (plus some data, probably)
-      read(guppifile_fd, guppifile_header, MAX_RAW_HDR_SIZE);
-      lseek(guppifile_fd, 0, SEEK_SET);
-
-      uint64_t pktstart=0, pktstop=0;
-      hgetu8(guppifile_header, "PKTIDX", &pktstart);
-      hgetu8(guppifile_header, "PKTSTART", &pktstart);
-      hgetu8(guppifile_header, "PKTSTOP", &pktstop);
-      hashpipe_info(thread_name, "PKTSTOP: %llu", pktstop);
+      guppiraw_read_blockheader(guppifile_fd, &gr_blockinfo);
+      hashpipe_info(thread_name, "PKTSTOP: %llu", guppiblock_metadata->pktstop);
 
       hashpipe_status_lock_safe(st);
-        hputu8(st->buf, "PKTSTART", pktstart);
-        hputu8(st->buf, "PKTSTOP", pktstop);
+        hputu8(st->buf, "PKTSTART", guppiblock_metadata->pktstart);
+        hputu8(st->buf, "PKTSTOP", guppiblock_metadata->pktstop);
         hputs(st->buf,  "IBVSTAT", "running"); // spoof
       hashpipe_status_unlock_safe(st);
     }
 
-    while(rawspec_raw_read_header(guppifile_fd, &raw_hdr) > 0) {
+    while(guppiraw_read_blockheader(guppifile_fd, &gr_blockinfo) == 0) {
       // fprintf(stderr, "Block parameters:\n");
-      // fprintf(stderr, "\tBLOCSIZE = %lu\n", raw_hdr.blocsize);
-      // fprintf(stderr, "\tOBSNCHAN = %d\n",  raw_hdr.obsnchan);
-      // fprintf(stderr, "\tNANTS    = %d\n",  raw_hdr.nants);
-      // fprintf(stderr, "\tNBITS    = %d\n",  raw_hdr.nbits);
-      // fprintf(stderr, "\tFLOATDATA= %d\n",  raw_hdr.float_data);
-      // fprintf(stderr, "\tNPOL     = %d\n",  raw_hdr.npol);
-      // fprintf(stderr, "\tOBSFREQ  = %g\n",  raw_hdr.obsfreq);
-      // fprintf(stderr, "\tOBSBW    = %g\n",  raw_hdr.obsbw);
-      // fprintf(stderr, "\tTBIN     = %g\n",  raw_hdr.tbin);
+      // fprintf(stderr, "\tBLOCSIZE = %lu\n", guppiblock_metadata->guppi_blocsize);
+      // fprintf(stderr, "\tOBSNCHAN = %d\n",  guppiblock_metadata->blockn_freq);
+      // fprintf(stderr, "\tNANTS    = %d\n",  guppiblock_metadata->blockn_ants);
+      // fprintf(stderr, "\tNBITS    = %d\n",  guppiblock_metadata->nbits);
+      // fprintf(stderr, "\tNPOL     = %d\n",  guppiblock_metadata->blockn_pol);
+      // fprintf(stderr, "\tOBSFREQ  = %g\n",  guppiblock_metadata->obsfreq);
+      // fprintf(stderr, "\tOBSBW    = %g\n",  guppiblock_metadata->obsbw);
+      // fprintf(stderr, "\tTBIN     = %g\n",  guppiblock_metadata->tbin);
       
-      if(blocsize != raw_hdr.blocsize) {
-        hashpipe_error(thread_name, "BLOCSIZE changed during observation from %llu to %llu.", blocsize, raw_hdr.blocsize);
+      if(blocsize != guppiblock_metadata->guppi_blocsize) {
+        hashpipe_error(thread_name, "BLOCSIZE changed during observation from %llu to %llu.", blocsize, guppiblock_metadata->guppi_blocsize);
         guppifile_i = -2; // break file progression
         break;
       }
-      if(pktidx != raw_hdr.pktidx) {
-        hashpipe_error(thread_name, "PKTIDX %llu is not the expected %llu. Ignoring this.", raw_hdr.pktidx, pktidx);
+      if(pktidx != guppiblock_metadata->pktidx) {
+        hashpipe_warn(thread_name, "PKTIDX %llu is not the expected %llu.", guppiblock_metadata->pktidx, pktidx);
       }
       
       // store block-data start
@@ -428,7 +466,7 @@ static void * run(hashpipe_thread_args_t * args)
           }
         }
       } while ((blockant_i | blockfreq_i | blocktime_i | blockpol_i) != 0);
-      if(raw_hdr.directio) {
+      if(metadata->directio) {
         blocsize = ((blocsize+511)/512) * 512;
       }
       lseek(guppifile_fd, guppifile_pos+blocsize, SEEK_SET);

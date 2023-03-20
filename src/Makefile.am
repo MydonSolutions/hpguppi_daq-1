@@ -38,8 +38,8 @@ libsla_support = slalib.h sla.c f77.h
 hpguppi_threads = \
 		hpguppi_ata_ibv_payload_order_thread.c \
 		hpguppi_atasnap_obs_rawdisk_thread.c \
-		mysigproc/mysigproc_utils.c
-#		guppiraw_ibv_packetize_thread.c # depends on rawspec currently
+		mysigproc/mysigproc_utils.c \
+		guppiraw_ibv_packetize_thread.c # depends on rawspec currently
 
 if IBVERBS_ENABLED
 hpguppi_daq_la_LIBADD = -lhashpipe_ibverbs
@@ -151,6 +151,12 @@ hpguppi_daq_la_LDFLAGS += -L"@RADIOINTERFEROMETRYC99_LIBDIR@"
 hpguppi_daq_la_LIBADD += -lradiointerferometryc99
 hpguppi_daq_la_CFLAGS  += -I "@RADIOINTERFEROMETRYC99_INCDIR@"
 endif # RADIOINTERFEROMETRYC99_ENABLED 
+
+if GUPPIRAWC99_ENABLED
+hpguppi_daq_la_LDFLAGS += -L"@GUPPIRAWC99_LIBDIR@"
+hpguppi_daq_la_LIBADD += -lguppirawc99
+hpguppi_daq_la_CFLAGS  += -I "@GUPPIRAWC99_INCDIR@"
+endif # GUPPIRAWC99_ENABLED 
 
 # Installed scripts
 dist_bin_SCRIPTS = init_hpguppi.py

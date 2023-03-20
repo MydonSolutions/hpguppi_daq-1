@@ -59,7 +59,10 @@ RUN apt-get update -y && apt-get install -y \
     linux-tools-generic \
     pkg-config \
     python3-pip \
-    libpq-dev
+    cmake \
+    libpq-dev \
+    ccache \
+    libbenchmark-dev
 
 RUN python3 -m pip install meson ninja
 
@@ -76,10 +79,11 @@ ENV CUDA_ROOT=/usr/local/cuda
 WORKDIR /work
 
 RUN cd /work \
-&& git clone https://github.com/luigifcruz/blade \
+&& git clone https://github.com/MydonSolutions/blade \
 && cd blade \
+&& git checkout plan_transferOutAtpf \
 && git submodule update --init \
-&& CC=gcc-10 CXX=g++-10 meson build -Dprefix=${PWD}/install \
+&& CC=gcc-10 CXX=g++-10 meson setup build -Dprefix=${PWD}/install \
 && cd build \
 && ninja install
 ####^ BLADE Builder ^####
@@ -118,7 +122,7 @@ RUN cd /work \
 && git clone https://github.com/MydonSolutions/uvh5c99 \
 && cd uvh5c99 \
 && git submodule update --init \
-&& meson build \
+&& meson setup build \
 && cd build \
 && ninja
 ####^ UVH5C99 Builder ^####
@@ -132,10 +136,24 @@ RUN cd /work \
 && git clone https://github.com/MydonSolutions/filterbankh5c99 \
 && cd filterbankh5c99 \
 && git submodule update --init \
-&& meson build -Dprefix=/work/filterbankh5c99/install \
+&& meson setup build -Dprefix=/work/filterbankh5c99/install \
 && cd build \
 && ninja install
 ####^ FILTERBANKH5C99 Builder ^####
+
+####v GUPPIRAWC99 Builder v####
+FROM ubuntu_builder AS guppirawc99_builder
+
+WORKDIR /work
+
+RUN cd /work \
+&& git clone https://github.com/MydonSolutions/guppirawc99 \
+&& cd guppirawc99 \
+&& git submodule update --init \
+&& meson setup build -Dprefix=/work/guppirawc99/install \
+&& cd build \
+&& ninja install
+####^ GUPPIRAWC99 Builder ^####
 
 ####v HPDAQ Builder v####
 FROM ubuntu_builder as hpdaq_builder
@@ -163,10 +181,11 @@ RUN cd /work \
 && gem install redis \
 && git clone https://github.com/david-macmahon/rb-hashpipe \
 && cd rb-hashpipe \
+&& git reset --hard 61bf4e335fce7cc38beee3e11ab3a18c436775c4 \
 && rake package \
 && cd pkg \
 && gem install \
-    --local ./hashpipe-0.6.3.gem -- \
+    --local ./hashpipe-0.7.0.gem -- \
     --with-hashpipe-include=/work/hashpipe/src \
     --with-hashpipestatus-lib=/work/hashpipe/src/.libs \
 && gem install curses
@@ -183,6 +202,9 @@ COPY --from=uvh5c99_builder /work/uvh5c99 /work/uvh5c99
 ## FILTERBANKH5C99
 COPY --from=filterbankh5c99_builder /work/filterbankh5c99 /work/filterbankh5c99
 
+## GUPPIRAWC99
+COPY --from=guppirawc99_builder /work/guppirawc99 /work/guppirawc99
+
 ## Hpguppi_daq
 COPY . /work/hpguppi_daq
 RUN cd /work/hpguppi_daq/src \
@@ -196,6 +218,7 @@ RUN cd /work/hpguppi_daq/src \
     --with-hashpipe=/work/hashpipe/src/.libs \
     --with-cuda-include=/usr/local/cuda-11.4.1/include \
     --with-filterbankh5c99=/work/filterbankh5c99/install \
+    --with-guppirawc99=/work/guppirawc99/install \
 && make
 #   --with-uvh5=/work/uvh5c99/build \
 #   --with-xgpu=/work/xGPU/src \ # without xgpu due to container lacking gpu

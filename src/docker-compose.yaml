@@ -1,0 +1,19 @@
+version: "3"
+services:
+  hp_daq: #docker run -it -v ${PWD}/test:/mnt/buf0 -v ${PWD}/src:/work/hpguppi_daq/src hp_daq /bin/sh
+    container_name: hp_daq
+    build: .
+    cap_add:
+      - IPC_LOCK
+    working_dir: /work/hpguppi_daq/src
+    entrypoint: /bin/sh
+    stdin_open: true
+    tty: true
+    volumes:
+    - ./test/:/mnt/buf0
+    - ./src:/work/hpguppi_daq/src
+    environment:
+      - LD_LIBRARY_PATH=/work/hashpipe/src/.libs:/work/xGPU/src:/work/uvh5c99/build:/work/uvh5c99/build/subprojects/radiointerferometryc99:/work/guppirawc99/install/
+      # for hashpipe_status_monitor.rb
+      - HASHPIPE_KEYFILE=/work
+      - LANG=C
