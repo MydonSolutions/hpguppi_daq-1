@@ -29,22 +29,32 @@ AC_DEFUN([AX_CHECK_GUPPIRAWC99], [
                                 # Found
                                 AC_SUBST(GUPPIRAWC99_INCDIR,${GUPPIRAWC99DIR}/../include),
                                 # Not found there, error
-                                AC_MSG_ERROR([guppirawc99.h header file not found])))
+                                AC_MSG_ERROR([guppirawc99.h header file not found])
+                  )
+    )
 
-    orig_LDFLAGS="${LDFLAGS}"
-    LDFLAGS="${orig_LDFLAGS} -L${GUPPIRAWC99DIR}/lib"
-    AC_CHECK_LIB([guppirawc99], [guppiraw_iterate_peek],
-                # Found
-                AC_SUBST(GUPPIRAWC99_LIBDIR,${GUPPIRAWC99DIR}/lib),
-                # Not found there, check GUPPIRAWC99DIR
-                AS_UNSET(ac_cv_lib_guppiraw_guppiraw_iterate_peek)
-                LDFLAGS="${orig_LDFLAGS} -L${GUPPIRAWC99DIR}"
-                AC_CHECK_LIB([guppirawc99], [guppiraw_iterate_peek],
-                            # Found
-                            AC_SUBST(GUPPIRAWC99_LIBDIR,${GUPPIRAWC99DIR}),
-                            # Not found there, error
-                            AC_MSG_ERROR([GUPPIRAWC99 library not found])))
-    LDFLAGS="${orig_LDFLAGS}"
+    AC_CHECK_FILE([${GUPPIRAWC99DIR}/lib/libguppirawc99.so],
+                  # Found
+                  GUPPIRAWC99_LIBDIR="${GUPPIRAWC99DIR}/lib",
+                  # Not found there
+                  AC_CHECK_FILE([${GUPPIRAWC99DIR}/lib/x86_64-linux-gnu/libguppirawc99.so],
+                                # Found
+                                GUPPIRAWC99_LIBDIR="${GUPPIRAWC99DIR}/lib/x86_64-linux-gnu/",
+                                # Not found there, error
+                                AC_MSG_ERROR([libguppirawc99.so not found])
+                  )
+    )
+
+    # orig_LDFLAGS="${LDFLAGS}"
+    # LDFLAGS="${orig_LDFLAGS} -L${GUPPIRAWC99_LIBDIR}/"
+    # AC_CHECK_LIB([guppirawc99], [guppiraw_write_block_arbitrary],
+    #             # Found
+    #             AC_SUBST(GUPPIRAWC99_LIBDIR,${GUPPIRAWC99_LIBDIR}/),
+    #             # Not found there, check under lib
+    #             AC_MSG_ERROR([GUPPIRAWC99 library invalid under $GUPPIRAWC99_LIBDIR/])
+    # )
+    # LDFLAGS="${orig_LDFLAGS}"
+    AC_SUBST(GUPPIRAWC99_LIBDIR,${GUPPIRAWC99_LIBDIR}/)
 
     guppirawc99_enabled=1;
   fi
