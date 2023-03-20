@@ -270,6 +270,7 @@ static int init(hashpipe_thread_args_t *args)
     return HASHPIPE_ERR_PARAM;
   }
 
+  guppiraw_iterate_close(&gr_iterate);
   // Success!
   return HASHPIPE_OK;
 }
@@ -388,6 +389,7 @@ static void * run(hashpipe_thread_args_t * args)
         hputu8(st->buf, "PKTSTOP", guppiblock_metadata->pktstop);
         hputs(st->buf,  "IBVSTAT", "running"); // spoof
       hashpipe_status_unlock_safe(st);
+      lseek(guppifile_fd, 0, SEEK_SET);
     }
 
     while(guppiraw_read_blockheader(guppifile_fd, &gr_blockinfo) == 0) {
