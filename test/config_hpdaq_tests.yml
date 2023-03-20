@@ -7,7 +7,7 @@ test:
       - /work/hashpipe/src/.libs/hashpipe_check_status $INSTANCE -C
     hashpipe_keyfile: /work
     environment:
-      - LD_LIBRARY_PATH=/work/hashpipe/src/.libs:/work/xGPU/src:/work/uvh5c99/build:/work/uvh5c99/build/subprojects/radiointerferometryc99
+      - LD_LIBRARY_PATH=/work/hashpipe/src/.libs:/work/xGPU/src:/work/uvh5c99/build:/work/uvh5c99/build/subprojects/radiointerferometryc99:/work/guppirawc99/install/lib/x86_64-linux-gnu
     options:
       - raw:
         - HPCONFIG=RAW-FTP-RAW
