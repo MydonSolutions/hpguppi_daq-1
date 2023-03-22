@@ -66,7 +66,7 @@ def delete(
 	system_name,
 	instance,
 	yaml_config,
-	environment_keys = [],
+	user_environment_keys = [],
 	dry_run = False,
 	config_filename = '???'
 ):
@@ -95,11 +95,13 @@ def delete(
 		print('Error trying to get the cpu core count.')
 		exit(0)
 	
-	system_environment_keys_start_index = len(environment_keys)
+	env_keys = []
 	if 'hashpipe_keyfile' in system:
-		environment_keys.append('HASHPIPE_KEYFILE={}'.format(system['hashpipe_keyfile']))
+		env_keys.append('HASHPIPE_KEYFILE={}'.format(system['hashpipe_keyfile']))
 	if 'environment' in system:
-		environment_keys += collect_yaml_value(system['environment'], instance, cores_per_cpu, subsystem)
+		env_keys += collect_yaml_value(system['environment'], instance, cores_per_cpu, subsystem)
+	system_environment_keys_start_index = len(env_keys)
+	env_keys += user_environment_keys
 	
 	cmd = [
 		f"{prefix_exec}hashpipe_clean_shmem",
@@ -108,16 +110,21 @@ def delete(
 	]
 
 	print(' '.join(cmd))
-	hashpipe_env = get_extended_environment(environment_keys, {})
-	print(subprocess.run(cmd, env=hashpipe_env, check=True, stdout=subprocess.PIPE).stdout.decode())
+	hashpipe_env = get_extended_environment(env_keys, {})
+	try:
+		print(subprocess.run(cmd, env=hashpipe_env, check=True, stdout=subprocess.PIPE).stdout.decode())
+	except:
+		return False
+
+	return True
 
 def run(
 	system_name,
 	instance,
 	yaml_config,
 	additional_arguments = [],
-	options = [],
-	environment_keys = [],
+	user_options = [],
+	user_environment_keys = [],
 	dry_run = False,
 	config_filename = '???'
 ):
@@ -318,6 +325,9 @@ def run(
 					option = option.replace('${}'.format(var), str(keyword_val))
 			options[option_idx] = option
 
+	# argument options override yaml options
+	options += user_options
+
 	# Print empty line to conclude setup and assumption prints
 	print()
 
@@ -374,14 +384,14 @@ def run(
 	err_logio = None if err_logpath is None else open(err_logpath, 'a')
 
 	# Setup environment
-	environment_keys = environment_keys
-	system_environment_keys_start_index = len(environment_keys)
+	env_keys = []
 	if 'hashpipe_keyfile' in system:
-		environment_keys.append('HASHPIPE_KEYFILE={}'.format(system['hashpipe_keyfile']))
+		env_keys.append('HASHPIPE_KEYFILE={}'.format(system['hashpipe_keyfile']))
 	if 'environment' in system:
-		environment_keys += collect_yaml_value(system['environment'], instance, cores_per_cpu, subsystem)
+		env_keys += collect_yaml_value(system['environment'], instance, cores_per_cpu, subsystem)
+	env_keys += user_environment_keys
 
-	hashpipe_env = get_extended_environment(environment_keys, _keyword_variable_dict)
+	hashpipe_env = get_extended_environment(env_keys, _keyword_variable_dict)
 
 	if 'setup_commands' in system:
 		for setup_command in collect_yaml_value(system['setup_commands'], instance, cores_per_cpu, subsystem):
@@ -394,7 +404,7 @@ def run(
 		print()
 		out_logio.write('%'*20+'\n')
 
-	print(' '.join(environment_keys[system_environment_keys_start_index:] + cmd))
+	print(' '.join(env_keys + cmd))
 
 	if not dry_run:
 		subprocess.Popen(cmd, env=hashpipe_env, stdout=out_logio, stderr=err_logio)
@@ -461,7 +471,7 @@ if __name__ == '__main__':
 					args.system,
 					int(inst_str),
 					yaml_config,
-					environment_keys = args.environment_keys,
+					user_environment_keys = args.environment_keys,
 					dry_run = args.dry_run,
 					config_filename = args.configfile
 				)
@@ -471,8 +481,8 @@ if __name__ == '__main__':
 					int(inst_str),
 					yaml_config,
 					additional_arguments = args.additional_arguments,
-					options = args.options,
-					environment_keys = args.environment_keys,
+					user_options = args.options,
+					user_environment_keys = args.environment_keys,
 					dry_run = args.dry_run,
 					config_filename = args.configfile
 				)
