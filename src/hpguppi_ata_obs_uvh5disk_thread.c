@@ -348,8 +348,7 @@ static void *run(hashpipe_thread_args_t * args)
           free(inputpairs);
 
           uvh5_header->spw_array[0] = 1;
-          // obs_freq is the center of a channel, so don't further offset to the center of channels
-          uvh5_header->freq_array[0] = (obs_freq - uvh5_header->Nfreqs*chan_bw/2) * 1e6;
+          uvh5_header->freq_array[0] = (obs_freq + (-((double)uvh5_header->Nfreqs/2) + 0.5)*chan_bw) * 1e6; // offset to the center of channels
           uvh5_header->channel_width[0] = chan_bw * 1e6;
           for(i = 0; i < uvh5_header->Nfreqs; i++) {
             uvh5_header->channel_width[i] = uvh5_header->channel_width[0];
@@ -453,21 +452,30 @@ static void *run(hashpipe_thread_args_t * args)
         UVH5write_keyword_double(&uvh5_file, "ChannelBandwidthHz", chan_bw*1e6);
         double fch1 = obs_freq - (schan + ((double)uvh5_header->Nfreqs/2.0))*chan_bw;
         UVH5write_keyword_double(&uvh5_file, "FirstChannelFrequencyHz", fch1*1e6);
-        double fcent = fch1 + ((double)fenchan/2.0)*chan_bw;
+        double fcent = fch1 + ((double)(fenchan-1)/2.0)*chan_bw; // Tuning frequency is middle of the channel
         UVH5write_keyword_double(&uvh5_file, "CenterFrequencyHz", fcent*1e6);
 
-        memset(keyword_string, '\0', 71);
-        keyword_string[0] = '\0';
+        memset(keyword_string, '\0', sizeof(keyword_string));
         hgets(st->buf, "TUNING", 70, keyword_string);
         if(strlen(keyword_string) > 0) {
           UVH5write_keyword_string(&uvh5_file, "Tuning", keyword_string);
         }
-        keyword_string[0] = '\0';
+        memset(keyword_string, '\0', sizeof(keyword_string));
         hgets(st->buf, "OBSID", 70, keyword_string);
         if(strlen(keyword_string) > 0) {
           UVH5write_keyword_string(&uvh5_file, "ObservationID", keyword_string);
         }
-        keyword_string[0] = '\0';
+        memset(keyword_string, '\0', sizeof(keyword_string));
+        hgets(st->buf, "DATASET", 70, keyword_string);
+        if(strlen(keyword_string) > 0) {
+          UVH5write_keyword_string(&uvh5_file, "Dataset", keyword_string);
+        }
+        memset(keyword_string, '\0', sizeof(keyword_string));
+        hgets(st->buf, "PROJID", 70, keyword_string);
+        if(strlen(keyword_string) > 0) {
+          UVH5write_keyword_string(&uvh5_file, "ProjectID", keyword_string);
+        }
+        memset(keyword_string, '\0', sizeof(keyword_string));
         hgets(st->buf, "NOTES", 70, keyword_string);
         if(strlen(keyword_string) > 0) {
           UVH5write_keyword_string(&uvh5_file, "Notes", keyword_string);
