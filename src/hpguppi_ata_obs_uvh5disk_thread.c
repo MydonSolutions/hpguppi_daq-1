@@ -348,7 +348,7 @@ static void *run(hashpipe_thread_args_t * args)
           free(inputpairs);
 
           uvh5_header->spw_array[0] = 1;
-          uvh5_header->freq_array[0] = (obs_freq + (-((double)uvh5_header->Nfreqs/2) + 0.5)*chan_bw) * 1e6; // offset to the center of channels
+          uvh5_header->freq_array[0] = (obs_freq - ((double)(uvh5_header->Nfreqs-1)/2)*chan_bw) * 1e6; // middles of channels
           uvh5_header->channel_width[0] = chan_bw * 1e6;
           for(i = 0; i < uvh5_header->Nfreqs; i++) {
             uvh5_header->channel_width[i] = uvh5_header->channel_width[0];
