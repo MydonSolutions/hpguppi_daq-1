@@ -188,8 +188,8 @@ dev:
       #   ibv: 
       #     hpguppi_atasnap_obs_rawdisk_thread: false
 vla:
-  prefix_exec: /home/cosmic/dev/hashpipe/src/
-  prefix_lib: /home/cosmic/dev/hpguppi_daq/src/.libs/
+  prefix_exec: /home/cosmic/src/hashpipe/src/
+  prefix_lib: /home/cosmic/src/hpguppi_daq/src/.libs/
   # hpguppi_plugin:
   logdir: /home/cosmic/logs/hashpipe
   # command_prefix:
@@ -224,7 +224,7 @@ vla:
         - IRQBALANCE_BANNED_CPULIST=00000000,3ffe3ffe
       24:
         - IRQBALANCE_BANNED_CPULIST=00003fff,fe3ffffe
-    - LD_LIBRARY_PATH=/home/cosmic/dev/hashpipe/src/.libs:/home/cosmic/src/xGPU/src:/home/cosmic/src/uvh5c99/build:/home/cosmic/src/uvh5c99/build/subprojects/radiointerferometryc99:/home/cosmic/src/blade/install:/home/cosmic/src/blade/install/lib:/home/cosmic/src/blade/install/lib/x86_64-linux-gnu
+    - LD_LIBRARY_PATH=/home/cosmic/dev/hashpipe/src/.libs:/home/cosmic/src/xGPU/src:/home/cosmic/src/uvh5c99/build:/home/cosmic/src/uvh5c99/install/lib/x86_64-linux-gnu:/home/cosmic/src/uvh5c99/build/subprojects/radiointerferometryc99:/home/cosmic/src/blade/install:/home/cosmic/src/blade/install/lib:/home/cosmic/src/blade/install/lib/x86_64-linux-gnu
     - ["CUDA_VISIBLE_DEVICES=0,1", "CUDA_VISIBLE_DEVICES=2,3", "CUDA_VISIBLE_DEVICES=0,1", "CUDA_VISIBLE_DEVICES=2,3"]
   options:
     - ibv:
@@ -237,7 +237,7 @@ vla:
         - PROJID=xgpu
         - BACKEND=uvh5
         - XGPUINT=1
-        - UVH5TELP=/home/cosmic/dev/telinfo_vla.toml
+        - UVH5TELP=/home/cosmic/conf/telinfo_vla.toml
         - POLS=rl
         - NPOL=2
     - DIRECTIO=1
@@ -247,7 +247,7 @@ vla:
     - TELESCOP=VLA
   instance_numanode_bind: [0, 1, 0, 1]
   instance_datadir: [/mnt/buf0, /mnt/buf1, /mnt/buf0, /mnt/buf1]
-  instance_bindhost: [enp97s0f1, enp225s0f1, enp97s0f1, enp225s0f1]
+  instance_bindhost: [eth2, eth4, eth2, eth4]
   thread_mask_lengths:
     hpguppi_ata_ibv_payload_order_thread:
       10
@@ -309,7 +309,7 @@ vladev:
         - HPCONFIG=DEV_IBV-TFPDP4A-XGPU-UVH5
         - BACKEND=UVH5
         - PROJID=xGPU
-        - UVH5TELP=/home/cosmic/src/telinfo_vla.toml
+        - UVH5TELP=/home/cosmic/conf/telinfo_vla.toml
         - POLES=RL
         - ["BINDPORT=50000", "BINDPORT=50000", "BINDPORT=50001", "BINDPORT=50001"]
       ibv_null:
@@ -325,7 +325,7 @@ vladev:
     - TELESCOP=VLA
   instance_numanode_bind: [0, 1, 0, 1]
   instance_datadir: [/mnt/buf0, /mnt/buf1, /mnt/buf0, /mnt/buf1]
-  instance_bindhost: [enp97s0f1, enp225s0f1, enp97s0f1, enp225s0f1]
+  instance_bindhost: [eth2, eth4, eth2, eth4]
   thread_mask_lengths:
     hpguppi_ata_ibv_payload_order_thread:
       12
