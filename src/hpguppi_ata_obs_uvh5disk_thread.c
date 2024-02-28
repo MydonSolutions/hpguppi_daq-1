@@ -450,9 +450,9 @@ static void *run(hashpipe_thread_args_t * args)
         UVH5write_keyword_int(&uvh5_file, "ObservedChannelOffset", schan);
         UVH5write_keyword_double(&uvh5_file, "ObservedCenterFrequencyHz", obs_freq*1e6);
         UVH5write_keyword_double(&uvh5_file, "ChannelBandwidthHz", chan_bw*1e6);
-        double fch1 = obs_freq - (schan + ((double)uvh5_header->Nfreqs/2.0))*chan_bw;
+        double fch1 = obs_freq - (schan + ((double)(uvh5_header->Nfreqs-1)/2.0))*chan_bw;
         UVH5write_keyword_double(&uvh5_file, "FirstChannelFrequencyHz", fch1*1e6);
-        double fcent = fch1 + ((double)(fenchan-1)/2.0)*chan_bw; // Tuning frequency is middle of the channel
+        double fcent = fch1 + ((double)fenchan/2.0)*chan_bw; // Tuning frequency is middle of the channel
         UVH5write_keyword_double(&uvh5_file, "CenterFrequencyHz", fcent*1e6);
 
         memset(keyword_string, '\0', sizeof(keyword_string));
