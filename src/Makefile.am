@@ -77,7 +77,10 @@ hpguppi_blade_c_api_files = \
 		hpguppi_blade_ata_mode_h_config.h \
 		hpguppi_blade_ata_mode_b_capi.cpp \
 		hpguppi_blade_ata_mode_b_capi.h \
-		hpguppi_blade_ata_mode_b_config.h
+		hpguppi_blade_ata_mode_b_config.h \
+		hpguppi_blade_ata_mode_c_capi.cpp \
+		hpguppi_blade_ata_mode_c_capi.h \
+		hpguppi_blade_ata_mode_c_config.h
 
 noinst_LTLIBRARIES = libbladeapi.la
 libbladeapi_la_SOURCES = $(hpguppi_blade_c_api_files)
@@ -133,7 +136,6 @@ endif
 
 hpguppi_daq_la_LDFLAGS += -L"@XGPU_LIBDIR@" -lxgpu -Xlinker -lrt
 hpguppi_daq_la_CFLAGS  += -I "@XGPU_INCDIR@"
-endif
 
 if UVH5C99_ENABLED
 hpguppi_threads += \
@@ -143,6 +145,9 @@ hpguppi_daq_la_LIBADD += -luvh5
 hpguppi_daq_la_CFLAGS  += -I "@UVH5C99_INCDIR@"
 hpguppi_daq_la_CFLAGS  += -I "@UVH5C99_INCDIR@/../external_src/tomlc99"
 endif # UVH5C99_ENABLED 
+
+endif
+
 
 if RADIOINTERFEROMETRYC99_ENABLED
 hpguppi_daq_la_LDFLAGS += -L"@RADIOINTERFEROMETRYC99_LIBDIR@"
