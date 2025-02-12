@@ -43,11 +43,11 @@ typedef struct {
     hpguppi_input_databuf_t* in;
     hpguppi_blade_output_databuf_t* out;
 
-    void* out_intermediary[N_INPUT_BLOCKS];
+    void* out_intermediary[N_BLADE_OUTPUT_BLOCKS];
 
     uint64_t fill_to_free_moving_sum_ns;
-    uint64_t fill_to_free_block_ns[N_INPUT_BLOCKS];
-    struct timespec ts_blocks_recvd[N_INPUT_BLOCKS];
+    uint64_t fill_to_free_block_ns[N_BLADE_OUTPUT_BLOCKS];
+    struct timespec ts_blocks_recvd[N_BLADE_OUTPUT_BLOCKS];
 } blade_userdata_t;
 
 double jd_mid_block(char* databuf_header) {
@@ -137,12 +137,12 @@ bool blade_cb_input_buffer_prefetch(void* user_data_void) {
           user_data->status_state=1;
         }
 
-        hputi4(user_data->status->buf, "BLDBLKSZ", BLADE_BLOCK_DATA_SIZE);
+        hputu8(user_data->status->buf, "BLDBLKSZ", BLADE_BLOCK_DATA_SIZE);
         hputs(user_data->status->buf, "BLDBUFST", buf_status);
         hputr4(user_data->status->buf, "BLDBLKMS",
           round(
             (double)(user_data->fill_to_free_moving_sum_ns)
-            / (user_data->blade_number_of_workers * N_INPUT_BLOCKS)
+            / (user_data->blade_number_of_workers * N_BLADE_OUTPUT_BLOCKS)
           ) / 1e6
         );
       }
@@ -177,28 +177,28 @@ bool blade_cb_input_buffer_prefetch(void* user_data_void) {
       indb_data_dims_good_flag = 0;
       if (user_data->prev_flagged_NANTS != input_buffer_dim_NANTS) {
         user_data->prev_flagged_NANTS = input_buffer_dim_NANTS;
-        hashpipe_error(user_data->thread_name, "Incoming data_buffer has NANTS %lu != %lu. Ignored.", input_buffer_dim_NANTS, BLADE_ATA_CONFIG.inputDims.NANTS);
+        hashpipe_error(user_data->thread_name, "\nIncoming data_buffer has NANTS %lu != %lu. Ignored.\n", input_buffer_dim_NANTS, BLADE_ATA_CONFIG.inputDims.NANTS);
       }
     }
     else if (input_buffer_dim_NCHAN != BLADE_ATA_CONFIG.inputDims.NCHANS) {
       indb_data_dims_good_flag = 0;
       if (user_data->prev_flagged_NCHAN != input_buffer_dim_NCHAN) {
         user_data->prev_flagged_NCHAN = input_buffer_dim_NCHAN;
-        hashpipe_error(user_data->thread_name, "Incoming data_buffer has NCHANS %lu != %lu. Ignored.", input_buffer_dim_NCHAN, BLADE_ATA_CONFIG.inputDims.NCHANS);
+        hashpipe_error(user_data->thread_name, "\nIncoming data_buffer has NCHANS %lu != %lu. Ignored.\n", input_buffer_dim_NCHAN, BLADE_ATA_CONFIG.inputDims.NCHANS);
       }
     }
     else if (input_buffer_dim_NTIME != BLADE_ATA_CONFIG.inputDims.NTIME) {
       indb_data_dims_good_flag = 0;
       if (user_data->prev_flagged_NTIME != input_buffer_dim_NTIME) {
         user_data->prev_flagged_NTIME = input_buffer_dim_NTIME;
-        hashpipe_error(user_data->thread_name, "Incoming data_buffer has NTIME %lu != %lu. Ignored.", input_buffer_dim_NTIME, BLADE_ATA_CONFIG.inputDims.NTIME);
+        hashpipe_error(user_data->thread_name, "\nIncoming data_buffer has NTIME %lu != %lu. Ignored.\n", input_buffer_dim_NTIME, BLADE_ATA_CONFIG.inputDims.NTIME);
       }
     }
     else if (input_buffer_dim_NPOLS != BLADE_ATA_CONFIG.inputDims.NPOLS) {
       indb_data_dims_good_flag = 0;
       if (user_data->prev_flagged_NPOLS != input_buffer_dim_NPOLS) {
         user_data->prev_flagged_NPOLS = input_buffer_dim_NPOLS;
-        hashpipe_error(user_data->thread_name, "Incoming data_buffer has NPOLS %lu != %lu. Ignored.", input_buffer_dim_NPOLS, BLADE_ATA_CONFIG.inputDims.NPOLS);
+        hashpipe_error(user_data->thread_name, "\nIncoming data_buffer has NPOLS %lu != %lu. Ignored.\n", input_buffer_dim_NPOLS, BLADE_ATA_CONFIG.inputDims.NPOLS);
       }
     }
 
@@ -406,8 +406,11 @@ bool blade_cb_input_buffer_prefetch(void* user_data_void) {
         antenna_calibration_coeffs
       );
 
+      hashpipe_info(user_data->thread_name, "free obs_antenna_names");
       free(obs_antenna_names);
+      hashpipe_info(user_data->thread_name, "free antenna_calibration_coeffs");
       free(antenna_calibration_coeffs);
+      hashpipe_info(user_data->thread_name, "free completed...");
     }
 
     user_data->prev_pktidx_obs_start = pktidx_obs_start;
@@ -454,6 +457,7 @@ void blade_cb_input_buffer_enqueued(void* user_data_void, size_t buffer_input_id
 
   double tbin;
   double obsbw;
+  double chanbw;
 
   {// Asynchronous CPU work
     // copy across the header
@@ -486,6 +490,7 @@ void blade_cb_input_buffer_enqueued(void* user_data_void, size_t buffer_input_id
 
     hgetr8(databuf_header, "TBIN", &tbin);
     hgetr8(databuf_header, "OBSBW", &obsbw);
+    hgetr8(databuf_header, "CHAN_BW", &chanbw);
 
     #if BLADE_ATA_MODE == BLADE_ATA_MODE_A
     // offload to the downstream filbank writer, which splits OBSNCHAN by number of beams...
@@ -506,7 +511,6 @@ void blade_cb_input_buffer_enqueued(void* user_data_void, size_t buffer_input_id
       tbin *= BLADE_ATA_CONFIG.integrationSize;
       tbin *= BLADE_ATA_CONFIG.accumulateRate*BLADE_ATA_CONFIG.inputDims.NTIME;
     }
-
     #else
     hputi4(databuf_header, "NCHAN", BLADE_ATA_CONFIG.inputDims.NCHANS*BLADE_ATA_CONFIG.channelizerRate); // beams are split into separate files...
     hputi4(databuf_header, "OBSNCHAN", BLADE_ATA_CONFIG.inputDims.NCHANS*BLADE_ATA_CONFIG.channelizerRate); // beams are split into separate files...
@@ -514,6 +518,7 @@ void blade_cb_input_buffer_enqueued(void* user_data_void, size_t buffer_input_id
 
     hputr8(databuf_header, "TBIN", tbin);
     hputr8(databuf_header, "OBSBW", obsbw);
+    hputr8(databuf_header, "CHAN_BW", chanbw);
   }
 
 }
@@ -642,7 +647,8 @@ static void *run(hashpipe_thread_args_t *args)
     },
     .ts_buffer_wait_timeout = {
       .tv_sec = 0,
-      .tv_nsec = 500000000, // 500 ms
+      // .tv_nsec = 500000000, // 500 ms
+      .tv_nsec = 500000, // 500 us
     },
 
 
@@ -667,8 +673,8 @@ static void *run(hashpipe_thread_args_t *args)
     // .ts_blocks_recvd = {0},
   };
 
-  #if BLADE_ATA_MODE == BLADE_ATA_MODE_A || BLADE_ATA_MODE == BLADE_ATA_MODE_H
-  for(size_t i = 0; i < N_INPUT_BLOCKS; i++) {
+  #if 0 // BLADE_ATA_MODE == BLADE_ATA_MODE_A || BLADE_ATA_MODE == BLADE_ATA_MODE_H
+  for(size_t i = 0; i < N_BLADE_OUTPUT_BLOCKS; i++) {
     blade_userdata.out_intermediary[i] = malloc(BLADE_BLOCK_OUTPUT_DATA_SIZE);
     blade_userdata.fill_to_free_block_ns[i] = 0;
     memset(blade_userdata.ts_blocks_recvd + i, 0, sizeof(struct timespec));
@@ -699,7 +705,7 @@ static void *run(hashpipe_thread_args_t *args)
   }
   hashpipe_status_unlock_safe(blade_userdata.status);
 
-  for(int i = 0; i < N_INPUT_BLOCKS; i++)
+  for(int i = 0; i < N_BLADE_OUTPUT_BLOCKS; i++)
   {
     blade_pin_memory(hpguppi_databuf_data(blade_userdata.in, i), BLOCK_DATA_SIZE);
     blade_pin_memory(hpguppi_databuf_data(blade_userdata.out, i), BLADE_BLOCK_DATA_SIZE);
@@ -730,7 +736,7 @@ static void *run(hashpipe_thread_args_t *args)
 
 static hashpipe_thread_desc_t blade_beamformer_thread = {
   name: "hpguppi_ata_blade_beamformer_thread",
-  skey: "BEAMSTAT",
+  skey: "BLDSTAT",
   init: NULL,
   run: run,
   ibuf_desc: {hpguppi_input_databuf_create},
